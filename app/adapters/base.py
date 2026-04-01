@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Awaitable, Callable
 
 from app.domain.enums import Platform
 from app.domain.models import UnifiedPost
@@ -6,6 +7,12 @@ from app.domain.models import UnifiedPost
 
 class BaseAdapter(ABC):
     platform: Platform
+
+    async def startup(self, on_post: Callable[[UnifiedPost], Awaitable[None]] | None = None) -> None:
+        return None
+
+    async def shutdown(self) -> None:
+        return None
 
     @abstractmethod
     async def parse_incoming_event(self, payload: dict) -> UnifiedPost | None:

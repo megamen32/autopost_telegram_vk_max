@@ -13,6 +13,7 @@ from app.db.base import Base
 from app.db import models as db_models  # noqa: F401
 from app.db.session import create_session_factory
 from app.domain.enums import Platform
+from app.domain.models import UnifiedPost
 from app.repositories.message_links_repo import MessageLinksRepo
 from app.repositories.processed_events_repo import ProcessedEventsRepo
 from app.repositories.routes_repo import RoutesRepo
@@ -57,6 +58,12 @@ class Container:
     def create_ingress_service(self, session: AsyncSession) -> IngressService:
         return IngressService(self.adapter_registry, self.create_sync_service(session))
 
+    async def handle_adapter_post(self, post: UnifiedPost) -> None:
+        async with self.session_factory() as session:
+            sync_service = self.create_sync_service(session)
+            await sync_service.handle_post(post)
+            await session.commit()
+
 
 @asynccontextmanager
 async def lifespan(app):
@@ -64,11 +71,23 @@ async def lifespan(app):
     engine, session_factory = create_session_factory(settings)
     app.state.engine = engine
     app.state.session_factory = session_factory
+
+    telegram_adapter = TelegramAdapter(
+        api_id=settings.telegram_api_id,
+        api_hash=settings.telegram_api_hash,
+        string_session=settings.telegram_string_session,
+        bot_token=settings.telegram_bot_token,
+        session_name=settings.telegram_session_name,
+        receive_updates=settings.telegram_receive_updates,
+        sequential_updates=settings.telegram_sequential_updates,
+        allowed_source_chat_ids=settings.telegram_allowed_source_chat_ids,
+    )
+
     app.state.container = Container(
         session_factory=session_factory,
         adapter_registry=AdapterRegistry(
             {
-                Platform.TELEGRAM: TelegramAdapter(),
+                Platform.TELEGRAM: telegram_adapter,
                 Platform.VK: VkAdapter(),
                 Platform.MAX: MaxAdapter(),
             }
@@ -79,9 +98,12 @@ async def lifespan(app):
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
+    await telegram_adapter.startup(on_post=app.state.container.handle_adapter_post)
+
     try:
         yield
     finally:
+        await telegram_adapter.shutdown()
         await engine.dispose()
 
 

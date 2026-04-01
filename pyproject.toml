@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "autopost-sync-beta"
-version = "0.2.0"
+version = "0.3.0"
 description = "Beta version of a cross-platform autopost sync service"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -18,7 +18,9 @@ dependencies = [
   "asyncpg>=0.29.0",
   "alembic>=1.13.2",
   "greenlet>=3.1.1",
+  "telethon>=1.42.0,<2.0",
 ]
+
 
 [project.optional-dependencies]
 dev = [
