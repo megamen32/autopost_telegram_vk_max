@@ -15,6 +15,11 @@ async def webhook_handler(
     container=Depends(get_container),
 ):
     payload = await request.json()
+    adapter = container.adapter_registry.get(platform)
+    preprocessed = await adapter.preprocess_webhook(payload, request=request)
+    if preprocessed is not None:
+        return preprocessed
+
     ingress_service = container.create_ingress_service(session)
     await ingress_service.handle_event(platform=platform, payload=payload)
     return {"ok": True}

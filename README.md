@@ -163,3 +163,40 @@ TELEGRAM_ALLOWED_SOURCE_CHAT_IDS=[]
 - если Telegram не настроен, адаптер мягко отключается и приложение всё равно стартует;
 - входящие сообщения принимаются не через HTTP webhook, а через Telethon updates;
 - ручной `POST /webhooks/telegram` сохранён для тестов и отладки.
+
+
+## VK callback configuration
+
+Set `VK_TOKEN`, `VK_GROUP_ID`, and optionally `VK_CONFIRMATION_TOKEN` / `VK_SECRET`.
+VK webhook endpoint: `/webhooks/vk`.
+Supported incoming callback types in this build: `message_new`, `wall_post_new`, and `confirmation`.
+Publishing currently supports text and photo uploads to community wall; video/audio/document media fall back to links where possible.
+
+
+## MAX adapter
+
+The project now includes a real MAX adapter based on the official MAX Bot API. It can receive `message_created` webhook updates, validate the `X-Max-Bot-Api-Secret` header, send text messages, and upload image/video/audio/file attachments through `/uploads` followed by `/messages`. MAX recommends webhook delivery for production, requires HTTPS on port 443, and supports up to 30 requests per second. If sending immediately after upload fails with `attachment.not.ready`, the adapter includes a short delay and can fall back to text with media links.
+
+
+## Delivery queue and retry
+
+This version includes a database-backed `delivery_jobs` queue and a background worker. Sync ingestion enqueues outgoing deliveries instead of sending media inline. The worker retries transient media failures such as MAX `attachment.not.ready`, rate limits, timeouts, and temporary upload processing with exponential backoff.
+
+
+## Production queue
+
+- PostgreSQL row locking via `FOR UPDATE SKIP LOCKED` when the dialect is PostgreSQL
+- lease-based job acquisition with `lock_token` and `lock_expires_at`
+- dead-letter state: `dead_letter`
+- platform-specific retry classifiers for Telegram, VK, and MAX
+
+
+## Queue heartbeat
+
+For long media uploads, the worker now periodically extends the PostgreSQL lease while the job is still running. Configure it with `DELIVERY_JOB_HEARTBEAT_INTERVAL_SECONDS`.
+
+
+## Single source of truth
+
+Telegram, VK and MAX platform settings are stored only in the database and edited through the Web GUI.
+Environment variables are reserved for infrastructure settings such as `DATABASE_URL`, `SECRETS_ENCRYPTION_KEY` and worker tuning.

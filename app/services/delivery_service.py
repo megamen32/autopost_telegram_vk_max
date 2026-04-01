@@ -1,23 +1,12 @@
-from app.adapters.registry import AdapterRegistry
 from app.domain.models import UnifiedPost
 from app.domain.policies import Route
+from app.services.queue_service import QueueService
 
 
 class DeliveryService:
-    def __init__(self, adapter_registry: AdapterRegistry, message_links_repo) -> None:
-        self.adapter_registry = adapter_registry
-        self.message_links_repo = message_links_repo
+    def __init__(self, queue_service: QueueService) -> None:
+        self.queue_service = queue_service
 
     async def deliver(self, route: Route, post: UnifiedPost) -> str:
-        adapter = self.adapter_registry.get(route.target_platform)
-        target_message_id = await adapter.publish_post(route.target_chat_id, post)
-
-        await self.message_links_repo.create(
-            origin_platform=post.source_platform.value,
-            origin_chat_id=post.source_chat_id,
-            origin_message_id=post.source_message_id,
-            target_platform=route.target_platform.value,
-            target_chat_id=route.target_chat_id,
-            target_message_id=target_message_id,
-        )
-        return target_message_id
+        job = await self.queue_service.enqueue_delivery(route=route, post=post)
+        return str(job["id"])

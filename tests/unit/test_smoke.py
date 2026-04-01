@@ -1,4 +1,5 @@
 import os
+import time
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -65,8 +66,15 @@ def test_smoke(tmp_path: Path):
         )
         assert webhook_resp.status_code == 200
 
-        links_resp = client.get('/debug/message-links')
-        assert links_resp.status_code == 200
-        links = links_resp.json()
+        links = []
+        deadline = time.time() + 2.0
+        while time.time() < deadline:
+            links_resp = client.get('/debug/message-links')
+            assert links_resp.status_code == 200
+            links = links_resp.json()
+            if links:
+                break
+            time.sleep(0.1)
+
         assert len(links) == 1
         assert links[0]['target_platform'] == 'vk'

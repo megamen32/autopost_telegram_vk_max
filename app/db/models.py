@@ -75,3 +75,50 @@ class MessageLinkORM(Base):
     target_chat_id: Mapped[str] = mapped_column(String(255), nullable=False)
     target_message_id: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+
+
+class PlatformSettingORM(Base):
+    __tablename__ = "platform_settings"
+
+    platform: Mapped[str] = mapped_column(String(32), primary_key=True)
+    config_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    secrets_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class DeliveryJobORM(Base):
+    __tablename__ = "delivery_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, index=True, default="pending")
+    route_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    target_platform: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    target_chat_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    origin_platform: Mapped[str] = mapped_column(String(32), nullable=False)
+    origin_chat_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    origin_message_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=8)
+    next_attempt_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    available_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    lock_token: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    locked_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lock_expires_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    completed_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    dead_lettered_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )

@@ -19,6 +19,8 @@ dependencies = [
   "alembic>=1.13.2",
   "greenlet>=3.1.1",
   "telethon>=1.42.0,<2.0",
+  "vkbottle>=4.6.2",
+  "cryptography>=45.0.0",
 ]
 
 

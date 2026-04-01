@@ -14,6 +14,9 @@ class BaseAdapter(ABC):
     async def shutdown(self) -> None:
         return None
 
+    async def preprocess_webhook(self, payload: dict, request=None):
+        return None
+
     @abstractmethod
     async def parse_incoming_event(self, payload: dict) -> UnifiedPost | None:
         raise NotImplementedError

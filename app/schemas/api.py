@@ -32,3 +32,16 @@ class RouteSchema(BaseModel):
     target_platform: Platform
     target_chat_id: str
     enabled: bool = True
+
+
+class PlatformSettingsUpdateSchema(BaseModel):
+    platform: Platform
+    config: dict = Field(default_factory=dict)
+    secrets: dict = Field(default_factory=dict)
+
+
+class PlatformSettingsResponseSchema(BaseModel):
+    platform: Platform
+    config: dict = Field(default_factory=dict)
+    secret_fields_present: dict[str, bool] = Field(default_factory=dict)
+    updated_at: str | None = None

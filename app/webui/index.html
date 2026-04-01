@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Autopost Sync Control Panel</title>
+  <style>
+    :root { --bg:#0b1020; --panel:#131a2d; --panel2:#1b2440; --text:#eef2ff; --muted:#a7b0cb; --accent:#6ea8fe; --good:#39d98a; --warn:#f7b955; --bad:#ff6b6b; --border:#2a355b; --chip:#22315a; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Inter,system-ui,sans-serif; background:linear-gradient(180deg,#0b1020 0%,#0e1528 100%); color:var(--text); }
+    .page { max-width:1500px; margin:0 auto; padding:24px; }
+    h1 { margin:0 0 8px; font-size:30px; }
+    .sub { color:var(--muted); margin-bottom:20px; }
+    .toolbar,.inline { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .toolbar { margin-bottom:18px; }
+    button,input,select,textarea { background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:10px 12px; font:inherit; }
+    textarea { min-height:80px; }
+    button { cursor:pointer; }
+    button.primary { background:var(--accent); color:#081123; border-color:transparent; font-weight:600; }
+    .grid { display:grid; grid-template-columns:repeat(12,1fr); gap:16px; }
+    .card { background:rgba(19,26,45,.95); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.18); }
+    .span-3 { grid-column:span 3; } .span-4 { grid-column:span 4; } .span-6 { grid-column:span 6; } .span-8 { grid-column:span 8; } .span-12 { grid-column:span 12; }
+    .metric { font-size:28px; font-weight:700; margin-top:6px; }
+    .label,.muted { color:var(--muted); }
+    .section-title { margin:0 0 12px; font-size:18px; }
+    .tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+    .tab { background:transparent; }
+    .tab.active { background:var(--panel2); }
+    .panel { display:none; } .panel.active { display:block; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th,td { text-align:left; padding:10px 8px; border-bottom:1px solid var(--border); vertical-align:top; }
+    th { color:var(--muted); font-weight:600; }
+    .matrix td,.matrix th { text-align:center; } .matrix .rowhdr { text-align:left; }
+    .chips { display:flex; gap:8px; flex-wrap:wrap; }
+    .chip { background:var(--chip); border-radius:999px; padding:6px 10px; font-size:12px; }
+    .chip.good { background:rgba(57,217,138,.12); color:var(--good); }
+    .chip.warn { background:rgba(247,185,85,.12); color:var(--warn); }
+    .chip.bad { background:rgba(255,107,107,.12); color:var(--bad); }
+    .mono { font-family:ui-monospace,monospace; font-size:12px; }
+    .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .field { display:flex; flex-direction:column; gap:6px; }
+    .field.wide { grid-column:1 / -1; }
+    .toast { position:fixed; right:16px; bottom:16px; background:#132038; border:1px solid var(--border); padding:12px 14px; border-radius:12px; display:none; }
+    .platform-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+    .secret-state { font-size:12px; color:var(--muted); }
+    .notice { background:rgba(247,185,85,.08); border:1px solid rgba(247,185,85,.35); padding:10px 12px; border-radius:12px; color:var(--warn); }
+    @media (max-width:1200px){ .platform-grid{grid-template-columns:1fr;} .span-3,.span-4,.span-6,.span-8,.span-12{grid-column:span 12;} }
+  </style>
+</head>
+<body>
+<div class="page">
+  <h1>Autopost Sync Control Panel</h1>
+  <div class="sub">Управление матрицей синхронизации, платформами, очередью доставки и статусами публикаций.</div>
+
+  <div class="toolbar">
+    <button class="primary" onclick="refreshAll()">Refresh</button>
+    <label class="inline muted">Auto refresh <input id="autoRefresh" type="checkbox" checked></label>
+    <span class="muted">Platform settings читаются только из БД. После изменения credentials нужен restart приложения, потому что адаптеры и webhook-клиенты создаются на старте.</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="overview">Overview</button>
+    <button class="tab" data-tab="platforms">Platform Settings</button>
+    <button class="tab" data-tab="matrix">Matrix</button>
+    <button class="tab" data-tab="routes">Routes</button>
+    <button class="tab" data-tab="jobs">Delivery Jobs</button>
+    <button class="tab" data-tab="links">Post Status</button>
+  </div>
+
+  <section id="tab-overview" class="panel active"><div class="grid" id="overviewGrid"></div></section>
+
+  <section id="tab-platforms" class="panel">
+    <div class="notice" style="margin-bottom:16px;">Secrets сохраняются в БД в encrypted виде. Платформенные настройки читаются только из БД; .env используется только для инфраструктуры. Текущие секреты не отображаются обратно в UI: видно только, что поле уже сохранено.</div>
+    <div class="platform-grid" id="platformSettingsWrap"></div>
+  </section>
+
+  <section id="tab-matrix" class="panel">
+    <div class="grid">
+      <div class="card span-8"><h3 class="section-title">Sync matrix</h3><div id="matrixWrap"></div></div>
+      <div class="card span-4">
+        <h3 class="section-title">Create / update rule</h3>
+        <form id="ruleForm" class="form-grid">
+          <label class="field"><span>Source platform</span><select name="source_platform"></select></label>
+          <label class="field"><span>Target platform</span><select name="target_platform"></select></label>
+          <label class="field"><span>Enabled</span><select name="enabled"><option value="true">true</option><option value="false">false</option></select></label>
+          <label class="field"><span>Repost mode</span><select name="repost_mode"><option>ignore</option><option>flatten</option><option>preserve_reference</option></select></label>
+          <label class="field"><span>Allow text</span><select name="allow_text"><option value="true">true</option><option value="false">false</option></select></label>
+          <label class="field"><span>Allow images</span><select name="allow_images"><option value="true">true</option><option value="false">false</option></select></label>
+          <label class="field"><span>Allow video</span><select name="allow_video"><option value="true">true</option><option value="false">false</option></select></label>
+          <label class="field"><span>Allow audio</span><select name="allow_audio"><option value="true">true</option><option value="false">false</option></select></label>
+          <label class="field"><span>Allow documents</span><select name="allow_documents"><option value="false">false</option><option value="true">true</option></select></label>
+          <label class="field"><span>Allow reposts</span><select name="allow_reposts"><option value="false">false</option><option value="true">true</option></select></label>
+          <label class="field"><span>Max images</span><input name="max_images" type="number" min="0"></label>
+          <label class="field"><span>Drop unsupported media</span><select name="drop_unsupported_media"><option value="true">true</option><option value="false">false</option></select></label>
+          <label class="field wide"><span>Copy text template</span><textarea name="copy_text_template" rows="3" placeholder="Optional, use {text}"></textarea></label>
+          <div class="field wide inline"><button class="primary" type="submit">Save rule</button><button type="button" onclick="deleteRuleFromForm()">Delete selected rule</button></div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-routes" class="panel">
+    <div class="grid">
+      <div class="card span-8"><h3 class="section-title">Routes</h3><div id="routesTable"></div></div>
+      <div class="card span-4">
+        <h3 class="section-title">Create / update route</h3>
+        <form id="routeForm" class="form-grid">
+          <label class="field"><span>Route id</span><input name="id" required></label>
+          <label class="field"><span>Enabled</span><select name="enabled"><option value="true">true</option><option value="false">false</option></select></label>
+          <label class="field"><span>Source platform</span><select name="source_platform"></select></label>
+          <label class="field"><span>Source chat id</span><input name="source_chat_id" required></label>
+          <label class="field"><span>Target platform</span><select name="target_platform"></select></label>
+          <label class="field"><span>Target chat id</span><input name="target_chat_id" required></label>
+          <div class="field wide inline"><button class="primary" type="submit">Save route</button><button type="button" onclick="deleteRouteFromForm()">Delete route</button></div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-jobs" class="panel"><div class="card"><h3 class="section-title">Delivery jobs</h3><div id="jobsTable"></div></div></section>
+  <section id="tab-links" class="panel"><div class="card"><h3 class="section-title">Post status by link</h3><div id="linksTable"></div></div></section>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const PLATFORMS=["telegram","vk","max"];
+let state={overview:null,rules:[],routes:[],jobs:[],links:[],platformSettings:[]};
+function $(s){return document.querySelector(s)}
+function bool(v){return String(v)==='true'}
+function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]))}
+function toast(msg){const el=$('#toast');el.textContent=msg;el.style.display='block';clearTimeout(window.__toast);window.__toast=setTimeout(()=>el.style.display='none',2600)}
+async function api(url, options={}){const res=await fetch(url,{headers:{'Content-Type':'application/json'},...options}); if(!res.ok){let detail=res.statusText; try{const body=await res.json(); detail=body.detail||JSON.stringify(body)}catch{} throw new Error(detail)} return res.status===204?null:res.json()}
+function setPlatformOptions(select){select.innerHTML=PLATFORMS.map(p=>`<option value="${p}">${p}</option>`).join('')}
+function initTabs(){document.querySelectorAll('.tab').forEach(btn=>btn.onclick=()=>showTab(btn.dataset.tab))}
+function showTab(name){document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===name)); document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active', p.id===`tab-${name}`))}
+function initForms(){document.querySelectorAll('#ruleForm select[name="source_platform"], #ruleForm select[name="target_platform"], #routeForm select[name="source_platform"], #routeForm select[name="target_platform"]').forEach(setPlatformOptions);
+  $('#ruleForm').addEventListener('submit', async(e)=>{e.preventDefault(); const fd=new FormData(e.target); const payload={source_platform:fd.get('source_platform'), target_platform:fd.get('target_platform'), enabled:bool(fd.get('enabled')), repost_mode:fd.get('repost_mode'), copy_text_template:fd.get('copy_text_template')||null, content_policy:{allow_text:bool(fd.get('allow_text')), allow_images:bool(fd.get('allow_images')), allow_video:bool(fd.get('allow_video')), allow_audio:bool(fd.get('allow_audio')), allow_documents:bool(fd.get('allow_documents')), allow_reposts:bool(fd.get('allow_reposts')), max_images:fd.get('max_images')?Number(fd.get('max_images')):null, max_video_size_mb:null, max_audio_size_mb:null, drop_unsupported_media:bool(fd.get('drop_unsupported_media'))}}; await api('/rules',{method:'POST', body:JSON.stringify(payload)}); toast('Rule saved'); await refreshAll()});
+  $('#routeForm').addEventListener('submit', async(e)=>{e.preventDefault(); const fd=new FormData(e.target); const payload=Object.fromEntries(fd.entries()); payload.enabled=bool(payload.enabled); await api('/routes',{method:'POST', body:JSON.stringify(payload)}); toast('Route saved'); await refreshAll()});
+}
+function statusChip(ok, yes='configured', no='missing'){const cls=ok?'good':'warn'; return `<span class="chip ${cls}">${ok?yes:no}</span>`}
+function renderOverview(){const o=state.overview; if(!o)return; const metrics=[['Rules',o.rules_total],['Routes',o.routes_total],['Processed events',o.processed_events_total],['Jobs total',o.jobs_total],['Pending jobs',o.pending_jobs],['Running jobs',o.running_jobs],['Retrying jobs',o.retrying_jobs],['Dead letter',o.dead_letter_jobs]]; const grid=$('#overviewGrid'); grid.innerHTML=metrics.map(([label,value])=>`<div class="card span-3"><div class="label">${label}</div><div class="metric">${escapeHtml(value)}</div></div>`).join('') + `<div class="card span-12"><h3 class="section-title">Platforms</h3><div class="chips">${Object.entries(o.platform_status||{}).map(([name,s])=>`<span class="chip ${s.configured?'good':'warn'}">${name}: ${s.mode}, updates=${s.receive_updates}, configured=${s.configured}</span>`).join('')}</div></div>`}
+function renderMatrix(){const rules=state.rules; let html='<table class="matrix"><thead><tr><th></th>'+PLATFORMS.map(p=>`<th>${p}</th>`).join('')+'</tr></thead><tbody>'; for(const src of PLATFORMS){ html+=`<tr><th class="rowhdr">${src}</th>`; for(const dst of PLATFORMS){ if(src===dst){ html+='<td>—</td>'; continue } const rule=rules.find(r=>r.source_platform===src && r.target_platform===dst); html+=`<td><button onclick="selectRule('${src}','${dst}')">${rule?(rule.enabled?'1':'0'):'0'}</button></td>` } html+='</tr>' } html+='</tbody></table>'; $('#matrixWrap').innerHTML=html }
+function fillRuleForm(rule){const f=$('#ruleForm'); f.source_platform.value=rule.source_platform; f.target_platform.value=rule.target_platform; f.enabled.value=String(rule.enabled); f.repost_mode.value=rule.repost_mode; f.allow_text.value=String(rule.content_policy.allow_text); f.allow_images.value=String(rule.content_policy.allow_images); f.allow_video.value=String(rule.content_policy.allow_video); f.allow_audio.value=String(rule.content_policy.allow_audio); f.allow_documents.value=String(rule.content_policy.allow_documents); f.allow_reposts.value=String(rule.content_policy.allow_reposts); f.max_images.value=rule.content_policy.max_images ?? ''; f.drop_unsupported_media.value=String(rule.content_policy.drop_unsupported_media); f.copy_text_template.value=rule.copy_text_template ?? ''; showTab('matrix') }
+async function selectRule(src,dst){const rule=state.rules.find(r=>r.source_platform===src && r.target_platform===dst); if(rule) fillRuleForm(rule); else {$('#ruleForm').reset(); $('#ruleForm').source_platform.value=src; $('#ruleForm').target_platform.value=dst} }
+async function deleteRuleFromForm(){const f=$('#ruleForm'); if(!f.source_platform.value || !f.target_platform.value) return; await api(`/rules/${f.source_platform.value}/${f.target_platform.value}`, {method:'DELETE'}); toast('Rule deleted'); await refreshAll()}
+function renderRoutes(){ $('#routesTable').innerHTML='<table><thead><tr><th>id</th><th>source</th><th>target</th><th>enabled</th><th></th></tr></thead><tbody>'+state.routes.map(r=>`<tr><td>${escapeHtml(r.id)}</td><td>${escapeHtml(r.source_platform)} / <span class="mono">${escapeHtml(r.source_chat_id)}</span></td><td>${escapeHtml(r.target_platform)} / <span class="mono">${escapeHtml(r.target_chat_id)}</span></td><td>${escapeHtml(r.enabled)}</td><td><button onclick="fillRouteById('${escapeHtml(r.id)}')">edit</button></td></tr>`).join('')+'</tbody></table>' }
+function fillRouteById(id){const route=state.routes.find(r=>r.id===id); if(!route) return; const f=$('#routeForm'); for(const [k,v] of Object.entries(route)){ if(f[k]) f[k].value=String(v) } showTab('routes') }
+async function deleteRouteFromForm(){const id=$('#routeForm [name="id"]').value; if(!id) return; await api(`/routes/${encodeURIComponent(id)}`, {method:'DELETE'}); toast('Route deleted'); await refreshAll()}
+function renderJobs(){ $('#jobsTable').innerHTML='<table><thead><tr><th>id</th><th>status</th><th>target</th><th>origin</th><th>attempts</th><th>error</th><th></th></tr></thead><tbody>'+state.jobs.map(j=>`<tr><td>${j.id}</td><td>${escapeHtml(j.status)}</td><td>${escapeHtml(j.target_platform)} / <span class="mono">${escapeHtml(j.target_chat_id)}</span></td><td>${escapeHtml(j.origin_platform)} / <span class="mono">${escapeHtml(j.origin_chat_id)}:${escapeHtml(j.origin_message_id)}</span></td><td>${escapeHtml(j.attempts)} / ${escapeHtml(j.max_attempts)}</td><td class="mono">${escapeHtml(j.last_error || '')}</td><td>${['dead_letter','retrying'].includes(j.status)?`<button onclick="requeueJob(${j.id})">requeue</button>`:''}</td></tr>`).join('')+'</tbody></table>' }
+async function requeueJob(id){ await api(`/api/dashboard/jobs/${id}/requeue`, {method:'POST'}); toast('Job requeued'); await refreshAll() }
+function renderLinks(){ $('#linksTable').innerHTML='<table><thead><tr><th>origin</th><th>target</th><th>created</th></tr></thead><tbody>'+state.links.map(l=>`<tr><td>${escapeHtml(l.origin_platform)} / <span class="mono">${escapeHtml(l.origin_chat_id)}:${escapeHtml(l.origin_message_id)}</span></td><td>${escapeHtml(l.target_platform)} / <span class="mono">${escapeHtml(l.target_chat_id)}:${escapeHtml(l.target_message_id)}</span></td><td>${escapeHtml(l.created_at || '')}</td></tr>`).join('')+'</tbody></table>' }
+function platformCardTemplate(platform, data){ const config=data?.config||{}; const present=data?.secret_fields_present||{}; const secretState=(name)=>`<span class="secret-state">${present[name]?'saved in DB':'empty'}</span>`; if(platform==='telegram'){ return `<div class="card"><h3 class="section-title">Telegram</h3><form class="form-grid platform-form" data-platform="telegram"><label class="field"><span>API ID</span><input name="api_id" type="number" value="${escapeHtml(config.api_id ?? '')}"></label><label class="field"><span>Session name</span><input name="session_name" value="${escapeHtml(config.session_name ?? '')}"></label><label class="field wide"><span>Allowed source chats (comma separated)</span><input name="allowed_source_chat_ids" value="${escapeHtml((config.allowed_source_chat_ids||[]).join(', '))}"></label><label class="field"><span>Receive updates</span><select name="receive_updates"><option value="true" ${config.receive_updates!==false?'selected':''}>true</option><option value="false" ${config.receive_updates===false?'selected':''}>false</option></select></label><label class="field"><span>Sequential updates</span><select name="sequential_updates"><option value="false" ${config.sequential_updates!==true?'selected':''}>false</option><option value="true" ${config.sequential_updates===true?'selected':''}>true</option></select></label><label class="field"><span>Check all chats</span><select name="check_all_chats"><option value="true" ${config.check_all_chats!==false?'selected':''}>true</option><option value="false" ${config.check_all_chats===false?'selected':''}>false</option></select></label><label class="field wide"><span>API hash</span><input name="api_hash" type="password" placeholder="Leave blank to keep current">${secretState('api_hash')}</label><label class="field wide"><span>String session</span><textarea name="string_session" placeholder="Leave blank to keep current"></textarea>${secretState('string_session')}</label><label class="field wide"><span>Bot token</span><input name="bot_token" type="password" placeholder="Leave blank to keep current">${secretState('bot_token')}</label><div class="field wide inline"><button class="primary" type="submit">Save Telegram settings</button></div></form></div>` }
+  if(platform==='vk'){ return `<div class="card"><h3 class="section-title">VK</h3><form class="form-grid platform-form" data-platform="vk"><label class="field"><span>Group ID</span><input name="group_id" type="number" value="${escapeHtml(config.group_id ?? '')}"></label><label class="field"><span>API version</span><input name="api_version" value="${escapeHtml(config.api_version ?? '')}"></label><label class="field wide"><span>Allowed source chats (comma separated)</span><input name="allowed_source_chat_ids" value="${escapeHtml((config.allowed_source_chat_ids||[]).join(', '))}"></label><label class="field"><span>Receive updates</span><select name="receive_updates"><option value="true" ${config.receive_updates!==false?'selected':''}>true</option><option value="false" ${config.receive_updates===false?'selected':''}>false</option></select></label><label class="field wide"><span>Token</span><input name="token" type="password" placeholder="Leave blank to keep current">${secretState('token')}</label><label class="field wide"><span>Confirmation token</span><input name="confirmation_token" type="password" placeholder="Leave blank to keep current">${secretState('confirmation_token')}</label><label class="field wide"><span>Secret</span><input name="secret" type="password" placeholder="Leave blank to keep current">${secretState('secret')}</label><div class="field wide inline"><button class="primary" type="submit">Save VK settings</button></div></form></div>` }
+  return `<div class="card"><h3 class="section-title">MAX</h3><form class="form-grid platform-form" data-platform="max"><label class="field wide"><span>Webhook URL</span><input name="webhook_url" value="${escapeHtml(config.webhook_url ?? '')}"></label><label class="field"><span>Receive updates</span><select name="receive_updates"><option value="true" ${config.receive_updates!==false?'selected':''}>true</option><option value="false" ${config.receive_updates===false?'selected':''}>false</option></select></label><label class="field"><span>Update types (comma separated)</span><input name="update_types" value="${escapeHtml((config.update_types||[]).join(', '))}"></label><label class="field wide"><span>Allowed source chats (comma separated)</span><input name="allowed_source_chat_ids" value="${escapeHtml((config.allowed_source_chat_ids||[]).join(', '))}"></label><label class="field wide"><span>Token</span><input name="token" type="password" placeholder="Leave blank to keep current">${secretState('token')}</label><label class="field wide"><span>Webhook secret</span><input name="secret" type="password" placeholder="Leave blank to keep current">${secretState('secret')}</label><div class="field wide inline"><button class="primary" type="submit">Save MAX settings</button></div></form></div>` }
+function renderPlatformSettings(){ const byPlatform=Object.fromEntries((state.platformSettings||[]).map(x=>[x.platform, x])); $('#platformSettingsWrap').innerHTML=PLATFORMS.map(p=>platformCardTemplate(p, byPlatform[p])).join(''); document.querySelectorAll('.platform-form').forEach(form=>form.addEventListener('submit', onSavePlatformSettings)) }
+function parseCsv(value){ return String(value||'').split(',').map(x=>x.trim()).filter(Boolean) }
+async function onSavePlatformSettings(e){ e.preventDefault(); const form=e.currentTarget; const platform=form.dataset.platform; const fd=new FormData(form); const config={}; const secrets={}; for(const [key,val] of fd.entries()){
+    if(['api_hash','string_session','bot_token','token','confirmation_token','secret'].includes(key)){ if(String(val).trim()!=='') secrets[key]=String(val).trim(); continue }
+    if(key==='allowed_source_chat_ids' || key==='update_types'){ config[key]=parseCsv(val); continue }
+    if(['receive_updates','sequential_updates','check_all_chats'].includes(key)){ config[key]=bool(val); continue }
+    if(['api_id','group_id'].includes(key)){ config[key]=String(val).trim()===''?null:Number(val); continue }
+    config[key]=String(val).trim()===''?null:String(val).trim();
+  }
+  await api(`/api/platform-settings/${platform}`, {method:'PUT', body:JSON.stringify({platform, config, secrets})});
+  toast(`${platform} settings saved. Restart app to reload credentials.`); await refreshPlatformSettings(); await refreshOverview();
+}
+async function refreshOverview(){ state.overview=await api('/api/dashboard/overview'); renderOverview() }
+async function refreshRules(){ state.rules=await api('/api/dashboard/rules'); renderMatrix() }
+async function refreshRoutes(){ state.routes=await api('/api/dashboard/routes'); renderRoutes() }
+async function refreshJobs(){ state.jobs=await api('/api/dashboard/jobs'); renderJobs() }
+async function refreshLinks(){ state.links=await api('/api/dashboard/message-links'); renderLinks() }
+async function refreshPlatformSettings(){ state.platformSettings=await api('/api/platform-settings'); renderPlatformSettings() }
+async function refreshAll(){ try{ await Promise.all([refreshOverview(), refreshRules(), refreshRoutes(), refreshJobs(), refreshLinks(), refreshPlatformSettings()]); } catch(err){ toast(err.message) } }
+function initAutoRefresh(){ setInterval(()=>{ if($('#autoRefresh').checked) refreshAll() }, 5000) }
+initTabs(); initForms(); refreshAll(); initAutoRefresh();
+</script>
+</body>
+</html>

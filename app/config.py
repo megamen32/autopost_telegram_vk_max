@@ -1,6 +1,3 @@
-from functools import lru_cache
-
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,18 +6,20 @@ class Settings(BaseSettings):
     debug: bool = True
     host: str = "127.0.0.1"
     port: int = 8000
+    app_base_url: str = "http://127.0.0.1:8000"
     database_url: str = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/autopost_sync"
     auto_create_tables: bool = True
+    secrets_encryption_key: str = "dev-not-secure-change-me"
 
-    telegram_api_id: int | None = None
-    telegram_api_hash: str | None = None
-    telegram_string_session: str | None = None
-    telegram_bot_token: str | None = None
-    telegram_session_name: str = "autopost_sync"
-    telegram_receive_updates: bool = True
-    telegram_sequential_updates: bool = False
-    telegram_check_all_chats: bool = True
-    telegram_allowed_source_chat_ids: list[str] = Field(default_factory=list)
+    delivery_queue_enabled: bool = True
+    delivery_worker_poll_interval_seconds: float = 1.0
+    delivery_worker_batch_size: int = 10
+    delivery_job_lease_seconds: int = 300
+    delivery_job_heartbeat_interval_seconds: float = 30.0
+    delivery_max_attempts: int = 8
+    delivery_retry_base_seconds: int = 5
+    delivery_retry_max_seconds: int = 900
+    delivery_retry_jitter_seconds: int = 3
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -29,6 +28,5 @@ class Settings(BaseSettings):
     )
 
 
-@lru_cache
 def get_settings() -> Settings:
     return Settings()
