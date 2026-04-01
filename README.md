@@ -1,6 +1,6 @@
 # 🚀 AutoPost Sync — кросспостинг между Telegram, VK и MAX
 
-**AutoPost Sync** — это self-hosted сервис для автоматического кросспостинга между платформами, типа https://crosslybot.ru/:
+**AutoPost Sync** — это self-hosted сервис для автоматического кросспостинга между платформами, типа [crosslybot](https://crosslybot.ru/):
 
 * Telegram (через Telethon)
 * VK (через vkbottle)
@@ -57,8 +57,8 @@
 ## 1. Клонировать проект
 
 ```bash
-git clone https://github.com/your-repo/autopost-sync.git
-cd autopost-sync
+git clone https://github.com/megamen32/autopost_telegram_vk_max.git
+cd autopost_telegram_vk_max
 ```
 
 ---
