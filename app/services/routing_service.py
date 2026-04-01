@@ -1,0 +1,22 @@
+from app.domain.models import UnifiedPost
+from app.domain.policies import Route, SyncRule
+
+
+class RoutingService:
+    def __init__(self, routes_repo, rules_repo) -> None:
+        self.routes_repo = routes_repo
+        self.rules_repo = rules_repo
+
+    async def resolve_destinations(self, post: UnifiedPost) -> list[tuple[Route, SyncRule]]:
+        routes = await self.routes_repo.list_enabled_for_source(
+            source_platform=post.source_platform,
+            source_chat_id=post.source_chat_id,
+        )
+
+        result: list[tuple[Route, SyncRule]] = []
+        for route in routes:
+            rule = await self.rules_repo.get_rule(route.source_platform, route.target_platform)
+            if rule is None or not rule.enabled:
+                continue
+            result.append((route, rule))
+        return result
