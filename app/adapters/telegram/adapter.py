@@ -52,16 +52,25 @@ class TelegramAdapter(BaseAdapter):
 
     async def startup(self, on_post: Callable[[UnifiedPost], Awaitable[None]] | None = None) -> None:
         self._on_post = on_post
+        self._mark_startup()
         if not self.enabled:
-            logger.info("TelegramAdapter disabled: no Telegram credentials configured")
+            self._log_warning("telegram disabled: missing api_id/api_hash and bot_token|string_session")
+            self._set_status("disabled", connected=False)
             return
 
-        client = await self._get_client()
-        if self.receive_updates and on_post is not None:
-            events = self._telethon_events_module()
-            client.add_event_handler(self._handle_new_message_event, events.NewMessage(incoming=True))
-        self._started = True
-        logger.info("TelegramAdapter started in Telethon mode")
+        try:
+            client = await self._get_client()
+            me = await client.get_me()
+            if self.receive_updates and on_post is not None:
+                events = self._telethon_events_module()
+                client.add_event_handler(self._handle_new_message_event, events.NewMessage(incoming=True))
+            self._started = True
+            self._set_status("running", connected=True)
+            self._log_info(f"telegram started in telethon mode as {getattr(me, 'username', None) or getattr(me, 'id', 'unknown')}")
+        except Exception as exc:
+            self._log_error(f"telegram startup failed: {exc}", code="telegram_startup_failed")
+            self._set_status("startup_failed", connected=False)
+            raise
 
     async def shutdown(self) -> None:
         if self._client is not None:
@@ -69,6 +78,7 @@ class TelegramAdapter(BaseAdapter):
         if self._disconnect_task is not None:
             self._disconnect_task.cancel()
         self._started = False
+        self._mark_shutdown()
 
     async def parse_incoming_event(self, payload: dict) -> UnifiedPost | None:
         chat_id = payload.get("chat_id")
@@ -101,6 +111,7 @@ class TelegramAdapter(BaseAdapter):
             if path:
                 files.append(path)
 
+        self._log_info(f"telegram publish to chat_id={chat_id}")
         if files:
             result = await client.send_file(
                 entity=entity,
@@ -113,8 +124,11 @@ class TelegramAdapter(BaseAdapter):
             result = await client.send_message(entity=entity, message=post.text or "")
 
         if isinstance(result, list):
-            return str(result[0].id)
-        return str(result.id)
+            result_id = str(result[0].id)
+        else:
+            result_id = str(result.id)
+        self._mark_publish(chat_id=chat_id, message_id=result_id)
+        return result_id
 
     async def delete_post(self, chat_id: str, message_id: str) -> None:
         client = await self._get_client(required=True)
@@ -132,16 +146,26 @@ class TelegramAdapter(BaseAdapter):
 
     async def _handle_new_message_event(self, event) -> None:
         if self._on_post is None:
+            self._mark_event_ignored("no_on_post_handler")
             return
 
         post = await self._message_to_unified_post(event.message)
         if post is None:
+            self._mark_event_ignored("message_to_post_returned_none")
             return
 
+        self._mark_event_received(chat_id=post.source_chat_id, message_id=post.source_message_id)
+        self._log_info(f"telegram incoming chat_id={post.source_chat_id} message_id={post.source_message_id}")
         if self.allowed_source_chat_ids and post.source_chat_id not in self.allowed_source_chat_ids:
+            self._mark_event_ignored("chat_not_allowed", chat_id=post.source_chat_id)
             return
 
-        await self._on_post(post)
+        try:
+            await self._on_post(post)
+            self._log_info(f"telegram post handed to sync pipeline route_source={post.source_chat_id}")
+        except Exception as exc:
+            self._log_error(f"telegram on_post failed: {exc}", code="telegram_on_post_failed", chat_id=post.source_chat_id)
+            raise
 
     async def _message_to_unified_post(self, message) -> UnifiedPost | None:
         chat = await message.get_chat()

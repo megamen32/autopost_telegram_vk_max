@@ -25,6 +25,7 @@ from app.services.sync_service import SyncService
 from app.services.transform_service import TransformService
 from app.workers.runner import DeliveryWorkerRunner
 from app.config import get_settings
+from app.services.adapter_runtime import AdapterRuntimeMonitor
 
 
 @dataclass(slots=True)
@@ -41,6 +42,7 @@ class Container:
     delivery_job_heartbeat_interval_seconds: float
     secrets_encryption_key: str
     adapter_instances_snapshot: list[dict]
+    adapter_runtime_monitor: AdapterRuntimeMonitor
 
     def create_sync_service(self, session: AsyncSession) -> SyncService:
         routes_repo = RoutesRepo(session)
@@ -85,9 +87,11 @@ async def lifespan(app):
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
+    runtime_monitor = AdapterRuntimeMonitor()
     adapter_registry, snapshot = await load_adapter_registry_from_db(
         session_factory,
         secrets_encryption_key=settings.secrets_encryption_key,
+        runtime_monitor=runtime_monitor,
     )
     container = Container(
         session_factory=session_factory,
@@ -102,11 +106,16 @@ async def lifespan(app):
         delivery_job_heartbeat_interval_seconds=settings.delivery_job_heartbeat_interval_seconds,
         secrets_encryption_key=settings.secrets_encryption_key,
         adapter_instances_snapshot=snapshot,
+        adapter_runtime_monitor=runtime_monitor,
     )
     app.state.container = container
 
     for adapter in [container.adapter_registry.get_by_instance(item['id']) for item in snapshot if item.get('enabled', True) and item['id'] in {x['instance_id'] for x in container.adapter_registry.list_instances()}]:
-        await adapter.startup(on_post=container.handle_adapter_post)
+        try:
+            await adapter.startup(on_post=container.handle_adapter_post)
+        except Exception as exc:
+            adapter._log_error(f"startup failed: {exc}", code="startup_failed")
+            adapter._set_status("startup_failed", connected=False)
 
     worker = None
     if settings.delivery_queue_enabled:
@@ -120,7 +129,11 @@ async def lifespan(app):
         if worker is not None:
             await worker.stop()
         for item in container.adapter_registry.list_instances():
-            await container.adapter_registry.get_by_instance(item['instance_id']).shutdown()
+            adapter = container.adapter_registry.get_by_instance(item['instance_id'])
+            try:
+                await adapter.shutdown()
+            except Exception as exc:
+                adapter._log_error(f"shutdown failed: {exc}", code="shutdown_failed")
         await engine.dispose()
 
 

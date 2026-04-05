@@ -69,7 +69,8 @@ class VkAdapter(BaseAdapter):
             return
         if self.receive_updates and self.receive_mode == "long_poll" and on_post is not None:
             self._polling_task = asyncio.create_task(self._run_long_poll_loop(), name=f"vk-long-poll-{self.instance_id}")
-            logger.info("VK adapter %s started in long poll mode", self.instance_id)
+            self._set_status("running", connected=True)
+            self._log_info("vk long poll started")
 
     async def shutdown(self) -> None:
         self._stop_event.set()
@@ -80,6 +81,7 @@ class VkAdapter(BaseAdapter):
             except asyncio.CancelledError:
                 pass
             self._polling_task = None
+        self._mark_shutdown()
 
     async def preprocess_webhook(self, payload: dict) -> dict[str, Any] | str | None:
         event_type = payload.get("type")
@@ -213,8 +215,8 @@ class VkAdapter(BaseAdapter):
                         await self._on_post(post)
             except asyncio.CancelledError:
                 raise
-            except Exception:
-                logger.exception("VK long poll loop failed for %s", self.instance_id)
+            except Exception as exc:
+                self._log_error(f"vk long poll loop failed: {exc}", code="vk_long_poll_failed")
                 await asyncio.sleep(3)
 
     def _parse_message_new(self, payload: dict) -> UnifiedPost | None:
@@ -227,6 +229,7 @@ class VkAdapter(BaseAdapter):
 
         source_chat_id = str(peer_id)
         if self.allowed_source_chat_ids and source_chat_id not in self.allowed_source_chat_ids:
+            self._mark_event_ignored("chat_not_allowed", chat_id=source_chat_id)
             return None
 
         attachments = message.get("attachments") or []
@@ -250,6 +253,7 @@ class VkAdapter(BaseAdapter):
 
         source_chat_id = str(owner_id)
         if self.allowed_source_chat_ids and source_chat_id not in self.allowed_source_chat_ids:
+            self._mark_event_ignored("chat_not_allowed", chat_id=source_chat_id)
             return None
 
         attachments = post.get("attachments") or []

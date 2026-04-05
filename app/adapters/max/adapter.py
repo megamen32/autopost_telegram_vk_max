@@ -76,8 +76,10 @@ class MaxAdapter(BaseAdapter):
     async def startup(self, on_post: Callable[[UnifiedPost], Awaitable[None]] | None = None) -> None:
         self._on_post = on_post
         self._stop_event.clear()
+        self._mark_startup()
         if not self.enabled:
-            logger.info("MaxAdapter disabled: no MAX token configured")
+            self._log_warning("max disabled: token not configured")
+            self._set_status("disabled", connected=False)
             return
         if self.receive_updates and on_post is not None and self.receive_mode == "long_poll":
             try:
@@ -85,7 +87,8 @@ class MaxAdapter(BaseAdapter):
             except Exception:
                 logger.info("MAX webhook cleanup skipped for %s", self.instance_id)
             self._polling_task = asyncio.create_task(self._run_long_poll_loop(), name=f"max-long-poll-{self.instance_id}")
-            logger.info("MAX adapter %s started in long poll mode", self.instance_id)
+            self._set_status("running", connected=True)
+            self._log_info("max long poll started")
             return
         if self.receive_updates and self.webhook_url:
             try:
@@ -94,9 +97,10 @@ class MaxAdapter(BaseAdapter):
                     update_types=self.update_types,
                     secret=self.secret,
                 )
-                logger.info("MAX webhook subscription registered for %s", self.instance_id)
+                self._set_status("running", connected=True)
+                self._log_info("max webhook subscription registered")
             except Exception:
-                logger.exception("Failed to register MAX webhook subscription for %s", self.instance_id)
+                self._log_error("failed to register MAX webhook subscription", code="max_webhook_subscribe_failed")
 
     async def shutdown(self) -> None:
         self._stop_event.set()
@@ -107,6 +111,7 @@ class MaxAdapter(BaseAdapter):
             except asyncio.CancelledError:
                 pass
             self._polling_task = None
+        self._mark_shutdown()
 
     async def _run_long_poll_loop(self) -> None:
         if self._on_post is None:
@@ -124,23 +129,34 @@ class MaxAdapter(BaseAdapter):
                 for update in response.get("updates") or []:
                     post = await self.parse_incoming_event(update)
                     if post is not None:
+                        self._mark_event_received(chat_id=post.source_chat_id, message_id=post.source_message_id)
                         await self._on_post(post)
             except asyncio.CancelledError:
                 raise
-            except Exception:
-                logger.exception("MAX long poll loop failed for %s", self.instance_id)
+            except Exception as exc:
+                self._log_error(f"max long poll loop failed: {exc}", code="max_long_poll_failed")
                 await asyncio.sleep(3)
 
     async def preprocess_webhook(self, payload: dict, request: Request | None = None):
         return await self._webhook_handler.preprocess_webhook(payload, request=request)
 
     async def parse_incoming_event(self, payload: dict) -> UnifiedPost | None:
-        return self._webhook_handler.parse_incoming_event(payload)
+        post = self._webhook_handler.parse_incoming_event(payload)
+        if post is None:
+            self._mark_event_ignored("unsupported_max_payload")
+            return None
+        if self.allowed_source_chat_ids and post.source_chat_id not in self.allowed_source_chat_ids:
+            self._mark_event_ignored("chat_not_allowed", chat_id=post.source_chat_id)
+            return None
+        return post
 
     async def publish_post(self, chat_id: str, post: UnifiedPost) -> str:
         if not self.enabled:
+            self._mark_publish(chat_id=chat_id, dry_run=True)
             return f"max-dry-run-{chat_id}-{post.source_message_id}"
-        return await self._get_publisher().publish_post(chat_id, post)
+        result = await self._get_publisher().publish_post(chat_id, post)
+        self._mark_publish(chat_id=chat_id, message_id=result)
+        return result
 
     async def delete_post(self, chat_id: str, message_id: str) -> None:
         if not self.enabled:

@@ -30,6 +30,7 @@ async def dashboard_overview(container=Depends(get_container), session: AsyncSes
     instances_repo = AdapterInstancesRepo(session, SecretBox(container.secrets_encryption_key))
     overview["adapter_instances"] = await instances_repo.list_all(include_secrets=False)
     overview["adapter_runtime_instances"] = container.adapter_registry.list_instances()
+    overview["adapter_runtime_statuses"] = container.adapter_runtime_monitor.snapshot()
     overview["available_platforms"] = container.adapter_registry.list_platforms()
     return overview
 
@@ -77,3 +78,8 @@ async def dashboard_requeue_job(job_id: int, session: AsyncSession = Depends(get
         raise HTTPException(status_code=404, detail="Job not found")
     await session.commit()
     return {"ok": True}
+
+
+@router.get("/api/dashboard/runtime-adapters")
+async def dashboard_runtime_adapters(container=Depends(get_container)):
+    return container.adapter_runtime_monitor.snapshot()
