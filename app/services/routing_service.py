@@ -3,7 +3,7 @@ from app.domain.policies import Route, SyncRule
 
 
 class RoutingService:
-    def __init__(self, routes_repo, rules_repo) -> None:
+    def __init__(self, routes_repo, rules_repo=None) -> None:
         self.routes_repo = routes_repo
         self.rules_repo = rules_repo
 
@@ -15,7 +15,7 @@ class RoutingService:
 
         result: list[tuple[Route, SyncRule]] = []
         for route in routes:
-            rule = await self.rules_repo.get_rule(route.source_platform, route.target_platform)
+            rule = route.to_sync_rule()
             if rule is None or not rule.enabled:
                 continue
             result.append((route, rule))

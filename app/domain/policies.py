@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from app.domain.enums import Platform, RepostMode
 
@@ -37,3 +37,21 @@ class Route:
     target_platform: Platform
     target_chat_id: str
     enabled: bool = True
+
+    has_policy: bool = False
+    policy_enabled: bool = True
+    content_policy: ContentPolicy = field(default_factory=ContentPolicy)
+    repost_mode: RepostMode = RepostMode.IGNORE
+    copy_text_template: str | None = None
+
+    def to_sync_rule(self) -> SyncRule | None:
+        if not self.has_policy:
+            return None
+        return SyncRule(
+            source_platform=self.source_platform,
+            target_platform=self.target_platform,
+            enabled=self.policy_enabled,
+            content_policy=self.content_policy,
+            repost_mode=self.repost_mode,
+            copy_text_template=self.copy_text_template,
+        )

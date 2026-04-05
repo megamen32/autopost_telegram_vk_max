@@ -1,6 +1,6 @@
 from sqlalchemy import func, select
 
-from app.db.models import AdapterInstanceORM, DeliveryJobORM, MessageLinkORM, ProcessedEventORM, RouteORM, SyncRuleORM
+from app.db.models import AdapterInstanceORM, DeliveryJobORM, MessageLinkORM, ProcessedEventORM, RouteORM
 from app.repositories.base import SQLAlchemyRepo
 
 
@@ -26,14 +26,9 @@ class DashboardRepo(SQLAlchemyRepo):
         links_total = await self.session.scalar(select(func.count()).select_from(MessageLinkORM)) or 0
         processed_events_total = await self.session.scalar(select(func.count()).select_from(ProcessedEventORM)) or 0
         routes_total = await self.session.scalar(select(func.count()).select_from(RouteORM)) or 0
-        enabled_routes = (
-            await self.session.scalar(select(func.count()).select_from(RouteORM).where(RouteORM.enabled.is_(True))) or 0
-        )
-        rules_total = await self.session.scalar(select(func.count()).select_from(SyncRuleORM)) or 0
-        enabled_rules = (
-            await self.session.scalar(select(func.count()).select_from(SyncRuleORM).where(SyncRuleORM.enabled.is_(True))) or 0
-        )
-
+        enabled_routes = (await self.session.scalar(select(func.count()).select_from(RouteORM).where(RouteORM.enabled.is_(True))) or 0)
+        routes_with_policy = (await self.session.scalar(select(func.count()).select_from(RouteORM).where(RouteORM.has_policy.is_(True))) or 0)
+        enabled_route_policies = (await self.session.scalar(select(func.count()).select_from(RouteORM).where(RouteORM.has_policy.is_(True), RouteORM.policy_enabled.is_(True))) or 0)
         adapter_instances_total = await self.session.scalar(select(func.count()).select_from(AdapterInstanceORM)) or 0
 
         return {
@@ -44,7 +39,7 @@ class DashboardRepo(SQLAlchemyRepo):
             "processed_events_total": processed_events_total,
             "routes_total": routes_total,
             "enabled_routes": enabled_routes,
+            "routes_with_policy": routes_with_policy,
+            "enabled_route_policies": enabled_route_policies,
             "adapter_instances_total": adapter_instances_total,
-            "rules_total": rules_total,
-            "enabled_rules": enabled_rules,
         }

@@ -13,7 +13,6 @@ from app.domain.models import UnifiedPost
 from app.repositories.delivery_jobs_repo import DeliveryJobsRepo
 from app.repositories.processed_events_repo import ProcessedEventsRepo
 from app.repositories.routes_repo import RoutesRepo
-from app.repositories.rules_repo import RulesRepo
 from app.services.adapter_instances_service import load_adapter_registry_from_db
 from app.services.dedup_service import DedupService
 from app.services.delivery_service import DeliveryService
@@ -45,12 +44,11 @@ class Container:
 
     def create_sync_service(self, session: AsyncSession) -> SyncService:
         routes_repo = RoutesRepo(session)
-        rules_repo = RulesRepo(session)
         processed_events_repo = ProcessedEventsRepo(session)
         delivery_jobs_repo = DeliveryJobsRepo(session)
 
         dedup_service = DedupService(processed_events_repo)
-        routing_service = RoutingService(routes_repo, rules_repo)
+        routing_service = RoutingService(routes_repo)
         policy_service = PolicyService()
         transform_service = TransformService()
         lineage_service = LineageService()

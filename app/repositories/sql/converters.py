@@ -13,6 +13,22 @@ def orm_to_route(row: RouteORM) -> Route:
         target_platform=Platform(row.target_platform),
         target_chat_id=row.target_chat_id,
         enabled=row.enabled,
+        has_policy=getattr(row, "has_policy", False),
+        policy_enabled=getattr(row, "policy_enabled", True),
+        content_policy=ContentPolicy(
+            allow_text=getattr(row, "allow_text", True),
+            allow_images=getattr(row, "allow_images", True),
+            allow_video=getattr(row, "allow_video", True),
+            allow_audio=getattr(row, "allow_audio", True),
+            allow_documents=getattr(row, "allow_documents", False),
+            allow_reposts=getattr(row, "allow_reposts", False),
+            max_images=getattr(row, "max_images", None),
+            max_video_size_mb=getattr(row, "max_video_size_mb", None),
+            max_audio_size_mb=getattr(row, "max_audio_size_mb", None),
+            drop_unsupported_media=getattr(row, "drop_unsupported_media", True),
+        ),
+        repost_mode=RepostMode(getattr(row, "repost_mode", "ignore")),
+        copy_text_template=getattr(row, "copy_text_template", None),
     )
 
 
@@ -26,6 +42,20 @@ def route_to_orm(route: Route) -> RouteORM:
         target_platform=route.target_platform.value,
         target_chat_id=route.target_chat_id,
         enabled=route.enabled,
+        has_policy=route.has_policy,
+        policy_enabled=route.policy_enabled,
+        allow_text=route.content_policy.allow_text,
+        allow_images=route.content_policy.allow_images,
+        allow_video=route.content_policy.allow_video,
+        allow_audio=route.content_policy.allow_audio,
+        allow_documents=route.content_policy.allow_documents,
+        allow_reposts=route.content_policy.allow_reposts,
+        max_images=route.content_policy.max_images,
+        max_video_size_mb=route.content_policy.max_video_size_mb,
+        max_audio_size_mb=route.content_policy.max_audio_size_mb,
+        drop_unsupported_media=route.content_policy.drop_unsupported_media,
+        repost_mode=route.repost_mode.value,
+        copy_text_template=route.copy_text_template,
     )
 
 

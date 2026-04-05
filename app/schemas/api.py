@@ -35,6 +35,12 @@ class RouteSchema(BaseModel):
     target_chat_id: str
     enabled: bool = True
 
+    has_policy: bool = False
+    policy_enabled: bool = True
+    content_policy: ContentPolicySchema = Field(default_factory=ContentPolicySchema)
+    repost_mode: RepostMode = RepostMode.IGNORE
+    copy_text_template: str | None = None
+
 
 class AdapterInstanceUpsertSchema(BaseModel):
     id: str = Field(min_length=1)

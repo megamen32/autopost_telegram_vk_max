@@ -10,7 +10,6 @@ from app.repositories.dashboard_repo import DashboardRepo
 from app.repositories.delivery_jobs_repo import DeliveryJobsRepo
 from app.repositories.message_links_repo import MessageLinksRepo
 from app.repositories.routes_repo import RoutesRepo
-from app.repositories.rules_repo import RulesRepo
 from app.utils.crypto import SecretBox
 
 router = APIRouter(tags=["dashboard"])
@@ -37,7 +36,20 @@ async def dashboard_overview(container=Depends(get_container), session: AsyncSes
 
 @router.get("/api/dashboard/rules")
 async def dashboard_rules(session: AsyncSession = Depends(get_session)):
-    return await RulesRepo(session).list_all()
+    routes = await RoutesRepo(session).list_all()
+    return [
+        {
+            "route_id": route.id,
+            "source_platform": route.source_platform,
+            "target_platform": route.target_platform,
+            "has_policy": route.has_policy,
+            "enabled": route.policy_enabled if route.has_policy else False,
+            "content_policy": route.content_policy,
+            "repost_mode": route.repost_mode,
+            "copy_text_template": route.copy_text_template,
+        }
+        for route in routes
+    ]
 
 
 @router.get("/api/dashboard/routes")

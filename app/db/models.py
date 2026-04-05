@@ -53,6 +53,22 @@ class RouteORM(Base):
     target_platform: Mapped[str] = mapped_column(String(32), nullable=False)
     target_chat_id: Mapped[str] = mapped_column(String(255), nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    has_policy: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    policy_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    allow_text: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    allow_images: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    allow_video: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    allow_audio: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    allow_documents: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    allow_reposts: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    max_images: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_video_size_mb: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_audio_size_mb: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    drop_unsupported_media: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    repost_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="ignore")
+    copy_text_template: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
