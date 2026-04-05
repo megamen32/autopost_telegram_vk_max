@@ -29,6 +29,8 @@ class MaxTransport(Protocol):
     async def edit_message(self, message_id: int, body: dict[str, Any]) -> dict[str, Any]: ...
     async def delete_message(self, message_id: int) -> dict[str, Any]: ...
     async def subscribe_webhook(self, *, url: str, update_types: list[str], secret: str | None = None) -> dict[str, Any]: ...
+    async def delete_webhook_subscriptions(self) -> dict[str, Any]: ...
+    async def get_updates(self, *, limit: int = 100, timeout: int = 30, marker: int | None = None, types: list[str] | None = None) -> dict[str, Any]: ...
     async def upload_attachment(
         self,
         *,
@@ -102,6 +104,24 @@ class HttpxMaxTransport:
         if secret:
             body["secret"] = secret
         return await self.call_api("POST", "/subscriptions", json_body=body)
+
+    async def delete_webhook_subscriptions(self) -> dict[str, Any]:
+        return await self.call_api("DELETE", "/subscriptions")
+
+    async def get_updates(
+        self,
+        *,
+        limit: int = 100,
+        timeout: int = 30,
+        marker: int | None = None,
+        types: list[str] | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {"limit": limit, "timeout": timeout}
+        if marker is not None:
+            params["marker"] = marker
+        if types:
+            params["types"] = types
+        return await self.call_api("GET", "/updates", params=params)
 
     async def get_upload_url(self, upload_type: str) -> dict[str, Any]:
         return await self.call_api("POST", "/uploads", params={"type": upload_type})
@@ -214,6 +234,14 @@ class MaxApiSdkTransport:
         result = await self._maybe_call("set_webhook", "subscribe_webhook", url=url, update_types=update_types, secret=secret)
         return _to_dict(result)
 
+    async def delete_webhook_subscriptions(self) -> dict[str, Any]:
+        result = await self._maybe_call("delete_webhook", "delete_subscriptions")
+        return _to_dict(result)
+
+    async def get_updates(self, *, limit: int = 100, timeout: int = 30, marker: int | None = None, types: list[str] | None = None) -> dict[str, Any]:
+        result = await self._maybe_call("get_updates", limit=limit, timeout=timeout, marker=marker, types=types)
+        return _to_dict(result)
+
     async def upload_attachment(self, *, upload_type: str, filename: str, content: bytes, content_type: str | None = None, wait_ready: bool = True) -> dict[str, Any]:
         # maxapi surface is not stable enough here; use httpx fallback in builder instead.
         raise RuntimeError("upload_attachment is not implemented for maxapi transport")
@@ -282,6 +310,12 @@ class MaxClient:
 
     async def subscribe_webhook(self, *, url: str, update_types: list[str], secret: str | None = None) -> dict[str, Any]:
         return await self._prefer_sdk_call("subscribe_webhook", url=url, update_types=update_types, secret=secret)
+
+    async def delete_webhook_subscriptions(self) -> dict[str, Any]:
+        return await self._prefer_sdk_call("delete_webhook_subscriptions")
+
+    async def get_updates(self, *, limit: int = 100, timeout: int = 30, marker: int | None = None, types: list[str] | None = None) -> dict[str, Any]:
+        return await self._prefer_sdk_call("get_updates", limit=limit, timeout=timeout, marker=marker, types=types)
 
     async def upload_attachment(self, *, upload_type: str, filename: str, content: bytes, content_type: str | None = None, wait_ready: bool = True) -> dict[str, Any]:
         # uploads stay on HTTP transport for now because package surface is inconsistent.

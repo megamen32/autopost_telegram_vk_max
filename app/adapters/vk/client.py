@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -64,6 +65,36 @@ class VkClient:
                 response.raise_for_status()
                 return response.content
         return Path(location).read_bytes()
+
+    async def get_group_long_poll_server(self, group_id: int) -> dict[str, Any]:
+        return await self.call_method("groups.getLongPollServer", {"group_id": group_id})
+
+    async def long_poll_once(
+        self,
+        *,
+        server: str,
+        key: str,
+        ts: str | int,
+        wait: int = 25,
+    ) -> dict[str, Any]:
+        params = {
+            "act": "a_check",
+            "key": key,
+            "ts": ts,
+            "wait": wait,
+        }
+        base_url = server if server.startswith(("http://", "https://")) else f"https://{server}"
+        async with httpx.AsyncClient(timeout=wait + 15.0) as client:
+            response = await client.get(base_url, params=params)
+            response.raise_for_status()
+            return response.json()
+
+    async def get_bot_long_poll_server(self, group_id: int) -> dict[str, Any]:
+        data = await self.get_group_long_poll_server(group_id)
+        server = data.get("server")
+        if server and not str(server).startswith(("http://", "https://")):
+            data["server"] = f"https://{server}"
+        return data
 
     async def _call_with_vkbottle(self, method: str, params: dict[str, Any]) -> dict[str, Any] | None:
         if self._api is None:
