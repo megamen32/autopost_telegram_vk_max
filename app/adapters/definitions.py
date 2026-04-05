@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.adapters.max.definition import MAX_DEFINITION
-from app.adapters.schema import AdapterDefinition, AdapterSettingField
+from app.adapters.schema import AdapterDefinition, AdapterSettingField, when_all, when_eq, when_true
 from app.adapters.telegram.adapter import TelegramAdapter
 from app.adapters.vk.adapter import VkAdapter
 from app.domain.enums import Platform
@@ -36,9 +36,9 @@ TELEGRAM_DEFINITION = AdapterDefinition(
         AdapterSettingField("api_hash", "API Hash", "str", "advanced", False, True, "API Hash приложения Telegram. Хранится как секрет."),
         AdapterSettingField("string_session", "String session", "str", "advanced", False, True, "Сессия Telethon для userbot-режима. Используй вместо bot token, если нужен доступ как у пользовательского аккаунта."),
         AdapterSettingField("session_name", "Session name", "str", "advanced", False, False, "Имя локального session-файла, если не используется string session.", "autopost_sync"),
-        AdapterSettingField("allowed_source_chat_ids", "Разрешённые source chat id", "list_str", "advanced", False, False, "Если список не пустой, входящие обновления принимаются только из указанных чатов/каналов."),
-        AdapterSettingField("sequential_updates", "Sequential updates", "bool", "advanced", False, False, "Обрабатывать входящие обновления строго последовательно. Полезно для отладки, но снижает throughput.", default=False),
-        AdapterSettingField("check_all_chats", "Проверять все чаты", "bool", "advanced", False, False, "Заготовка под более строгую фильтрацию источников. Пока обычно не требуется.", default=False),
+        AdapterSettingField("allowed_source_chat_ids", "Разрешённые source chat id", "list_str", "advanced", False, False, "Если список не пустой, входящие обновления принимаются только из указанных чатов/каналов.", visible_when=when_true("receive_updates")),
+        AdapterSettingField("sequential_updates", "Sequential updates", "bool", "advanced", False, False, "Обрабатывать входящие обновления строго последовательно. Полезно для отладки, но снижает throughput.", default=False, visible_when=when_true("receive_updates")),
+        AdapterSettingField("check_all_chats", "Проверять все чаты", "bool", "advanced", False, False, "Заготовка под более строгую фильтрацию источников. Пока обычно не требуется.", default=False, visible_when=when_true("receive_updates")),
     ],
     factory=_telegram_factory,
 )
@@ -70,12 +70,12 @@ VK_DEFINITION = AdapterDefinition(
         AdapterSettingField("group_id", "Group ID", "int", "simple", True, False, "ID сообщества VK, от имени которого публикуются посты и принимаются входящие события."),
         AdapterSettingField("token", "Token", "str", "simple", True, True, "Сервисный токен сообщества с правами на публикацию и получение событий."),
         AdapterSettingField("receive_updates", "Принимать входящие события", "bool", "simple", False, False, "Если выключить, инстанс будет только отправлять посты, без чтения входящих событий.", default=True),
-        AdapterSettingField("receive_mode", "Режим получения событий", "choice", "simple", False, False, "Long polling удобен по умолчанию. Webhook нужен, если хочешь принимать события через Callback API VK на свой HTTP endpoint.", options=[{"value": "long_poll", "label": "Long polling"}, {"value": "webhook", "label": "Webhook / Callback API"}], default="long_poll"),
-        AdapterSettingField("allowed_source_chat_ids", "Разрешённые source chat id", "list_str", "advanced", False, False, "Если список не пустой, входящие обновления принимаются только из указанных peer_id / owner_id."),
+        AdapterSettingField("receive_mode", "Режим получения событий", "choice", "simple", False, False, "Long polling удобен по умолчанию. Webhook нужен, если хочешь принимать события через Callback API VK на свой HTTP endpoint.", options=[{"value": "long_poll", "label": "Long polling"}, {"value": "webhook", "label": "Webhook / Callback API"}], default="long_poll", visible_when=when_true("receive_updates")),
+        AdapterSettingField("allowed_source_chat_ids", "Разрешённые source chat id", "list_str", "advanced", False, False, "Если список не пустой, входящие обновления принимаются только из указанных peer_id / owner_id.", visible_when=when_true("receive_updates")),
         AdapterSettingField("api_version", "API version", "str", "advanced", False, False, "Версия VK API. Обычно достаточно дефолта.", default="5.199"),
-        AdapterSettingField("confirmation_token", "Confirmation token", "str", "advanced", False, True, "Нужен только для webhook-режима Callback API, когда VK присылает событие confirmation."),
-        AdapterSettingField("secret", "Webhook secret", "str", "advanced", False, True, "Секрет Callback API. Проверяется только в webhook-режиме."),
-        AdapterSettingField("long_poll_wait_seconds", "Long poll wait, сек", "int", "advanced", False, False, "Сколько секунд держать одно long poll соединение с VK открытым.", default=25),
+        AdapterSettingField("confirmation_token", "Confirmation token", "str", "advanced", False, True, "Нужен только для webhook-режима Callback API, когда VK присылает событие confirmation.", visible_when=when_all(when_true("receive_updates"), when_eq("receive_mode", "webhook"))),
+        AdapterSettingField("secret", "Webhook secret", "str", "advanced", False, True, "Секрет Callback API. Проверяется только в webhook-режиме.", visible_when=when_all(when_true("receive_updates"), when_eq("receive_mode", "webhook"))),
+        AdapterSettingField("long_poll_wait_seconds", "Long poll wait, сек", "int", "advanced", False, False, "Сколько секунд держать одно long poll соединение с VK открытым.", default=25, visible_when=when_all(when_true("receive_updates"), when_eq("receive_mode", "long_poll"))),
     ],
     factory=_vk_factory,
 )
