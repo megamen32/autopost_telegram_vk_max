@@ -1,17 +1,47 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
+import inspect
+import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 class MaxApiError(RuntimeError):
     pass
 
 
-class MaxClient:
+class MaxTransport(Protocol):
+    async def get_me(self) -> dict[str, Any]: ...
+    async def send_message(
+        self,
+        *,
+        chat_id: int | None = None,
+        user_id: int | None = None,
+        body: dict[str, Any],
+        disable_link_preview: bool | None = None,
+    ) -> dict[str, Any]: ...
+    async def edit_message(self, message_id: int, body: dict[str, Any]) -> dict[str, Any]: ...
+    async def delete_message(self, message_id: int) -> dict[str, Any]: ...
+    async def subscribe_webhook(self, *, url: str, update_types: list[str], secret: str | None = None) -> dict[str, Any]: ...
+    async def upload_attachment(
+        self,
+        *,
+        upload_type: str,
+        filename: str,
+        content: bytes,
+        content_type: str | None = None,
+        wait_ready: bool = True,
+    ) -> dict[str, Any]: ...
+    async def download_bytes(self, location: str) -> bytes: ...
+
+
+class HttpxMaxTransport:
     def __init__(self, token: str, base_url: str = "https://platform-api.max.ru") -> None:
         self.token = token
         self.base_url = base_url.rstrip("/")
@@ -122,3 +152,146 @@ class MaxClient:
         if wait_ready and upload_type in {"video", "audio", "image", "file"}:
             await asyncio.sleep(1.0)
         return {"type": upload_type, "payload": payload}
+
+
+class MaxApiSdkTransport:
+    """Thin adapter over official/fork-verified maxapi package.
+
+    The package surface may evolve, so this class keeps the dependency isolated.
+    When a required method is missing, caller should fall back to HttpxMaxTransport.
+    """
+
+    def __init__(self, token: str) -> None:
+        self.token = token
+        try:
+            self.maxapi = importlib.import_module("maxapi")
+        except Exception as exc:  # pragma: no cover - depends on environment
+            raise RuntimeError("maxapi package is not installed") from exc
+        bot_cls = getattr(self.maxapi, "Bot", None)
+        if bot_cls is None:
+            raise RuntimeError("maxapi.Bot not found")
+        self.bot = bot_cls(token)
+
+    async def _maybe_call(self, *names: str, **kwargs):
+        target = self.bot
+        method = None
+        for name in names:
+            method = getattr(target, name, None)
+            if method is not None:
+                break
+        if method is None:
+            raise RuntimeError(f"Required maxapi method missing: {names}")
+        result = method(**kwargs)
+        if inspect.isawaitable(result):
+            return await result
+        return result
+
+    async def get_me(self) -> dict[str, Any]:
+        result = await self._maybe_call("get_me", "me")
+        return _to_dict(result)
+
+    async def send_message(self, *, chat_id: int | None = None, user_id: int | None = None, body: dict[str, Any], disable_link_preview: bool | None = None) -> dict[str, Any]:
+        params = {}
+        if chat_id is not None:
+            params["chat_id"] = chat_id
+        if user_id is not None:
+            params["user_id"] = user_id
+        if disable_link_preview is not None:
+            params["disable_link_preview"] = disable_link_preview
+        params.update(body)
+        result = await self._maybe_call("send_message", "create_message", **params)
+        return _to_dict(result)
+
+    async def edit_message(self, message_id: int, body: dict[str, Any]) -> dict[str, Any]:
+        result = await self._maybe_call("edit_message", message_id=message_id, **body)
+        return _to_dict(result)
+
+    async def delete_message(self, message_id: int) -> dict[str, Any]:
+        result = await self._maybe_call("delete_message", message_id=message_id)
+        return _to_dict(result)
+
+    async def subscribe_webhook(self, *, url: str, update_types: list[str], secret: str | None = None) -> dict[str, Any]:
+        result = await self._maybe_call("set_webhook", "subscribe_webhook", url=url, update_types=update_types, secret=secret)
+        return _to_dict(result)
+
+    async def upload_attachment(self, *, upload_type: str, filename: str, content: bytes, content_type: str | None = None, wait_ready: bool = True) -> dict[str, Any]:
+        # maxapi surface is not stable enough here; use httpx fallback in builder instead.
+        raise RuntimeError("upload_attachment is not implemented for maxapi transport")
+
+    async def download_bytes(self, location: str) -> bytes:
+        return await HttpxMaxTransport(self.token).download_bytes(location)
+
+
+def _to_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if hasattr(value, "model_dump"):
+        return value.model_dump()
+    if hasattr(value, "dict"):
+        return value.dict()
+    if hasattr(value, "__dict__"):
+        return dict(value.__dict__)
+    return {"result": value}
+
+
+class MaxClient:
+    def __init__(self, token: str, *, base_url: str = "https://platform-api.max.ru", prefer_sdk: bool = True) -> None:
+        self.token = token
+        self.base_url = base_url.rstrip("/")
+        self.prefer_sdk = prefer_sdk
+        self._sdk_transport: MaxTransport | None = None
+        self._http_transport: MaxTransport | None = None
+
+    def _http(self) -> MaxTransport:
+        if self._http_transport is None:
+            self._http_transport = HttpxMaxTransport(self.token, base_url=self.base_url)
+        return self._http_transport
+
+    def _sdk(self) -> MaxTransport:
+        if self._sdk_transport is None:
+            self._sdk_transport = MaxApiSdkTransport(self.token)
+        return self._sdk_transport
+
+    async def _prefer_sdk_call(self, method_name: str, *args, **kwargs):
+        if self.prefer_sdk:
+            try:
+                method = getattr(self._sdk(), method_name)
+                return await method(*args, **kwargs)
+            except Exception as exc:  # pragma: no cover - depends on optional package
+                logger.info("MAX SDK transport unavailable for %s, fallback to HTTP: %s", method_name, exc)
+        method = getattr(self._http(), method_name)
+        return await method(*args, **kwargs)
+
+    async def get_me(self) -> dict[str, Any]:
+        return await self._prefer_sdk_call("get_me")
+
+    async def send_message(self, *, chat_id: int | None = None, user_id: int | None = None, body: dict[str, Any], disable_link_preview: bool | None = None) -> dict[str, Any]:
+        return await self._prefer_sdk_call(
+            "send_message",
+            chat_id=chat_id,
+            user_id=user_id,
+            body=body,
+            disable_link_preview=disable_link_preview,
+        )
+
+    async def edit_message(self, message_id: int, body: dict[str, Any]) -> dict[str, Any]:
+        return await self._prefer_sdk_call("edit_message", message_id, body)
+
+    async def delete_message(self, message_id: int) -> dict[str, Any]:
+        return await self._prefer_sdk_call("delete_message", message_id)
+
+    async def subscribe_webhook(self, *, url: str, update_types: list[str], secret: str | None = None) -> dict[str, Any]:
+        return await self._prefer_sdk_call("subscribe_webhook", url=url, update_types=update_types, secret=secret)
+
+    async def upload_attachment(self, *, upload_type: str, filename: str, content: bytes, content_type: str | None = None, wait_ready: bool = True) -> dict[str, Any]:
+        # uploads stay on HTTP transport for now because package surface is inconsistent.
+        return await self._http().upload_attachment(
+            upload_type=upload_type,
+            filename=filename,
+            content=content,
+            content_type=content_type,
+            wait_ready=wait_ready,
+        )
+
+    async def download_bytes(self, location: str) -> bytes:
+        return await self._http().download_bytes(location)

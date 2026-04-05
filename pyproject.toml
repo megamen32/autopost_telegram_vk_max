@@ -21,6 +21,7 @@ dependencies = [
   "telethon>=1.42.0,<2.0",
   "vkbottle>=4.6.2",
   "cryptography>=45.0.0",
+  "maxapi>=0.9.16",
 ]
 
 

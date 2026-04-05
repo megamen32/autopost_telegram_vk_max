@@ -1,51 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from typing import Any, Callable
-
-from app.adapters.max.adapter import MaxAdapter
+from app.adapters.max.definition import MAX_DEFINITION
+from app.adapters.schema import AdapterDefinition, AdapterSettingField
 from app.adapters.telegram.adapter import TelegramAdapter
 from app.adapters.vk.adapter import VkAdapter
 from app.domain.enums import Platform
 
 
-@dataclass(slots=True)
-class AdapterSettingField:
-    name: str
-    label: str
-    field_type: str
-    scope: str = "simple"
-    required: bool = False
-    secret: bool = False
-    help_text: str | None = None
-    placeholder: str | None = None
-    options: list[dict[str, str]] = field(default_factory=list)
-    default: Any = None
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
-
-@dataclass(slots=True)
-class AdapterDefinition:
-    adapter_key: str
-    platform: str
-    title: str
-    description: str
-    fields: list[AdapterSettingField]
-    factory: Callable[[str, dict[str, Any], dict[str, Any]], Any]
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "adapter_key": self.adapter_key,
-            "platform": self.platform,
-            "title": self.title,
-            "description": self.description,
-            "fields": [field.to_dict() for field in self.fields],
-        }
-
-
-def _telegram_factory(instance_id: str, config: dict[str, Any], secrets: dict[str, Any]) -> TelegramAdapter:
+def _telegram_factory(instance_id: str, config: dict[str, any], secrets: dict[str, any]) -> TelegramAdapter:
     return TelegramAdapter(
         instance_id=instance_id,
         api_id=config.get("api_id"),
@@ -82,7 +44,7 @@ TELEGRAM_DEFINITION = AdapterDefinition(
 )
 
 
-def _vk_factory(instance_id: str, config: dict[str, Any], secrets: dict[str, Any]) -> VkAdapter:
+def _vk_factory(instance_id: str, config: dict[str, any], secrets: dict[str, any]) -> VkAdapter:
     return VkAdapter(
         instance_id=instance_id,
         token=secrets.get("token"),
@@ -115,37 +77,6 @@ VK_DEFINITION = AdapterDefinition(
 )
 
 
-def _max_factory(instance_id: str, config: dict[str, Any], secrets: dict[str, Any]) -> MaxAdapter:
-    return MaxAdapter(
-        instance_id=instance_id,
-        token=secrets.get("token"),
-        webhook_url=config.get("webhook_url"),
-        secret=secrets.get("secret"),
-        receive_updates=bool(config.get("receive_updates", True)),
-        update_types=config.get("update_types") or ["message_created"],
-        allowed_source_chat_ids=config.get("allowed_source_chat_ids") or [],
-    )
-
-
-MAX_DEFINITION = AdapterDefinition(
-    adapter_key="max",
-    platform=Platform.MAX.value,
-    title="MAX",
-    description="MAX Bot API adapter. В simple-режиме обычно нужен только токен.",
-    fields=[
-        AdapterSettingField("display_name", "Название инстанса", "str", "simple", True),
-        AdapterSettingField("enabled", "Включен", "bool", "simple", False, False, default=True),
-        AdapterSettingField("token", "Token", "str", "simple", True, True),
-        AdapterSettingField("receive_updates", "Принимать входящие события", "bool", "simple", False, False, default=True),
-        AdapterSettingField("webhook_url", "Webhook URL", "str", "advanced"),
-        AdapterSettingField("update_types", "Типы обновлений", "list_str", "advanced"),
-        AdapterSettingField("allowed_source_chat_ids", "Разрешённые source chat id", "list_str", "advanced"),
-        AdapterSettingField("secret", "Webhook secret", "str", "advanced", False, True),
-    ],
-    factory=_max_factory,
-)
-
-
 class AdapterDefinitionRegistry:
     def __init__(self) -> None:
         self._defs = {
@@ -160,5 +91,5 @@ class AdapterDefinitionRegistry:
     def get(self, adapter_key: str) -> AdapterDefinition:
         return self._defs[adapter_key]
 
-    def create_adapter(self, adapter_key: str, instance_id: str, config: dict[str, Any], secrets: dict[str, Any]):
+    def create_adapter(self, adapter_key: str, instance_id: str, config: dict[str, any], secrets: dict[str, any]):
         return self.get(adapter_key).factory(instance_id, config, secrets)
