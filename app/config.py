@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = "autopost_sync_beta"
     debug: bool = True
+    sql_debug: bool = False
     host: str = "127.0.0.1"
     port: int = 8000
     app_base_url: str = "http://127.0.0.1:8000"

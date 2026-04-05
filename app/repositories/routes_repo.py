@@ -1,9 +1,32 @@
 from sqlalchemy import delete, select
 
 from app.db.models import RouteORM
-from app.domain.policies import Route
+from app.domain.policies import ContentPolicy, Route
 from app.repositories.base import SQLAlchemyRepo
 from app.repositories.sql.converters import orm_to_route
+
+
+
+
+def _normalize_content_policy(value) -> ContentPolicy:
+    if isinstance(value, ContentPolicy):
+        return value
+
+    if isinstance(value, dict):
+        return ContentPolicy(
+            allow_text=value.get("allow_text", True),
+            allow_images=value.get("allow_images", True),
+            allow_video=value.get("allow_video", True),
+            allow_audio=value.get("allow_audio", True),
+            allow_documents=value.get("allow_documents", False),
+            allow_reposts=value.get("allow_reposts", False),
+            max_images=value.get("max_images"),
+            max_video_size_mb=value.get("max_video_size_mb"),
+            max_audio_size_mb=value.get("max_audio_size_mb"),
+            drop_unsupported_media=value.get("drop_unsupported_media", True),
+        )
+
+    return ContentPolicy()
 
 
 class RoutesRepo(SQLAlchemyRepo):
@@ -22,16 +45,18 @@ class RoutesRepo(SQLAlchemyRepo):
         row.enabled = route.enabled
         row.has_policy = route.has_policy
         row.policy_enabled = route.policy_enabled
-        row.allow_text = route.content_policy.allow_text
-        row.allow_images = route.content_policy.allow_images
-        row.allow_video = route.content_policy.allow_video
-        row.allow_audio = route.content_policy.allow_audio
-        row.allow_documents = route.content_policy.allow_documents
-        row.allow_reposts = route.content_policy.allow_reposts
-        row.max_images = route.content_policy.max_images
-        row.max_video_size_mb = route.content_policy.max_video_size_mb
-        row.max_audio_size_mb = route.content_policy.max_audio_size_mb
-        row.drop_unsupported_media = route.content_policy.drop_unsupported_media
+
+        policy = _normalize_content_policy(route.content_policy)
+        row.allow_text = policy.allow_text
+        row.allow_images = policy.allow_images
+        row.allow_video = policy.allow_video
+        row.allow_audio = policy.allow_audio
+        row.allow_documents = policy.allow_documents
+        row.allow_reposts = policy.allow_reposts
+        row.max_images = policy.max_images
+        row.max_video_size_mb = policy.max_video_size_mb
+        row.max_audio_size_mb = policy.max_audio_size_mb
+        row.drop_unsupported_media = policy.drop_unsupported_media
         row.repost_mode = route.repost_mode.value
         row.copy_text_template = route.copy_text_template
 

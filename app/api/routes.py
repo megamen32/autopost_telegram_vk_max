@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.policies import Route
+from app.domain.policies import ContentPolicy, Route
 from app.repositories.routes_repo import RoutesRepo
 from app.schemas.api import RouteSchema
 from app.dependencies import get_session
@@ -16,7 +16,9 @@ async def list_routes(session: AsyncSession = Depends(get_session)):
 
 @router.post("")
 async def create_or_update_route(payload: RouteSchema, session: AsyncSession = Depends(get_session)):
-    route = Route(**payload.model_dump())
+    data = payload.model_dump()
+    data["content_policy"] = ContentPolicy(**payload.content_policy.model_dump())
+    route = Route(**data)
     return await RoutesRepo(session).upsert(route)
 
 

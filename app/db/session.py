@@ -6,7 +6,7 @@ from app.config import Settings
 
 def create_session_factory(settings: Settings) -> tuple:
     engine_kwargs = {
-        "echo": settings.debug,
+        "echo": settings.sql_debug,
         "future": True,
         "pool_pre_ping": True,
     }
