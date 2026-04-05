@@ -27,21 +27,19 @@ class SyncRuleSchema(BaseModel):
 
 class RouteSchema(BaseModel):
     id: str = Field(min_length=1)
+    source_adapter_id: str = Field(min_length=1)
     source_platform: Platform
     source_chat_id: str
+    target_adapter_id: str = Field(min_length=1)
     target_platform: Platform
     target_chat_id: str
     enabled: bool = True
 
 
-class PlatformSettingsUpdateSchema(BaseModel):
-    platform: Platform
+class AdapterInstanceUpsertSchema(BaseModel):
+    id: str = Field(min_length=1)
+    adapter_key: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    enabled: bool = True
     config: dict = Field(default_factory=dict)
     secrets: dict = Field(default_factory=dict)
-
-
-class PlatformSettingsResponseSchema(BaseModel):
-    platform: Platform
-    config: dict = Field(default_factory=dict)
-    secret_fields_present: dict[str, bool] = Field(default_factory=dict)
-    updated_at: str | None = None

@@ -1,19 +1,21 @@
-from app.domain.enums import Platform
-from app.domain.models import MessageTrace, UnifiedPost
+from app.domain.models import UnifiedPost
 
 
 class LineageService:
-    def can_deliver(self, post: UnifiedPost, target_platform: Platform) -> bool:
+    def can_deliver(self, post: UnifiedPost, target_adapter_id: str) -> bool:
         if post.trace is None:
             return True
-        return target_platform not in post.trace.path
+        return target_adapter_id not in post.trace.path
 
-    def extend_trace(self, post: UnifiedPost, next_platform: Platform) -> UnifiedPost:
+    def extend_trace(self, post: UnifiedPost, next_adapter_id: str) -> UnifiedPost:
         if post.trace is None:
-            origin_id = f"{post.source_platform.value}:{post.source_chat_id}:{post.source_message_id}"
-            post.trace = MessageTrace(origin_id=origin_id, path=[post.source_platform])
-
-        if next_platform not in post.trace.path:
-            post.trace.path.append(next_platform)
-
+            post.trace = self._create_trace(post)
+        if next_adapter_id not in post.trace.path:
+            post.trace.path.append(next_adapter_id)
         return post
+
+    def _create_trace(self, post: UnifiedPost):
+        from app.domain.models import MessageTrace
+
+        origin_id = f"{post.source_adapter_id}:{post.source_chat_id}:{post.source_message_id}"
+        return MessageTrace(origin_id=origin_id, path=[post.source_adapter_id])

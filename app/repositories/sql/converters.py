@@ -6,8 +6,10 @@ from app.domain.policies import ContentPolicy, Route, SyncRule
 def orm_to_route(row: RouteORM) -> Route:
     return Route(
         id=row.id,
+        source_adapter_id=row.source_adapter_id,
         source_platform=Platform(row.source_platform),
         source_chat_id=row.source_chat_id,
+        target_adapter_id=row.target_adapter_id,
         target_platform=Platform(row.target_platform),
         target_chat_id=row.target_chat_id,
         enabled=row.enabled,
@@ -17,8 +19,10 @@ def orm_to_route(row: RouteORM) -> Route:
 def route_to_orm(route: Route) -> RouteORM:
     return RouteORM(
         id=route.id,
+        source_adapter_id=route.source_adapter_id,
         source_platform=route.source_platform.value,
         source_chat_id=route.source_chat_id,
+        target_adapter_id=route.target_adapter_id,
         target_platform=route.target_platform.value,
         target_chat_id=route.target_chat_id,
         enabled=route.enabled,

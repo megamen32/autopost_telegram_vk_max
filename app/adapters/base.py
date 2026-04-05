@@ -8,6 +8,9 @@ from app.domain.models import UnifiedPost
 class BaseAdapter(ABC):
     platform: Platform
 
+    def __init__(self, *, instance_id: str | None = None) -> None:
+        self.instance_id = instance_id or self.platform.value
+
     async def startup(self, on_post: Callable[[UnifiedPost], Awaitable[None]] | None = None) -> None:
         return None
 

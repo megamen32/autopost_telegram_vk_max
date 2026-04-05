@@ -23,6 +23,7 @@ class VkAdapter(BaseAdapter):
     def __init__(
         self,
         *,
+        instance_id: str | None = None,
         token: str | None = None,
         group_id: int | None = None,
         api_version: str = "5.199",
@@ -31,6 +32,7 @@ class VkAdapter(BaseAdapter):
         receive_updates: bool = True,
         allowed_source_chat_ids: list[str] | None = None,
     ) -> None:
+        super().__init__(instance_id=instance_id)
         self.token = token
         self.group_id = group_id
         self.api_version = api_version
@@ -68,6 +70,7 @@ class VkAdapter(BaseAdapter):
 
         return UnifiedPost(
             source_platform=self.platform,
+            source_adapter_id=self.instance_id,
             source_chat_id=str(chat_id),
             source_message_id=str(message_id),
             text=payload.get("text"),
@@ -161,6 +164,7 @@ class VkAdapter(BaseAdapter):
         attachments = message.get("attachments") or []
         return UnifiedPost(
             source_platform=self.platform,
+            source_adapter_id=self.instance_id,
             source_chat_id=source_chat_id,
             source_message_id=str(message_id),
             text=message.get("text") or None,
@@ -183,6 +187,7 @@ class VkAdapter(BaseAdapter):
         attachments = post.get("attachments") or []
         return UnifiedPost(
             source_platform=self.platform,
+            source_adapter_id=self.instance_id,
             source_chat_id=source_chat_id,
             source_message_id=str(post_id),
             text=post.get("text") or None,

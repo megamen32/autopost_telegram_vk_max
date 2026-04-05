@@ -32,6 +32,7 @@ def media_item_from_dict(data: dict) -> MediaItem:
 def unified_post_to_dict(post: UnifiedPost) -> dict:
     return {
         "source_platform": post.source_platform.value,
+        "source_adapter_id": post.source_adapter_id,
         "source_chat_id": post.source_chat_id,
         "source_message_id": post.source_message_id,
         "text": post.text,
@@ -40,24 +41,17 @@ def unified_post_to_dict(post: UnifiedPost) -> dict:
         "original_platform": post.original_platform.value if post.original_platform else None,
         "original_chat_id": post.original_chat_id,
         "original_message_id": post.original_message_id,
-        "trace": {
-            "origin_id": post.trace.origin_id,
-            "path": [platform.value for platform in post.trace.path],
-        } if post.trace else None,
+        "trace": {"origin_id": post.trace.origin_id, "path": list(post.trace.path)} if post.trace else None,
         "raw_payload": post.raw_payload,
     }
 
 
 def unified_post_from_dict(data: dict) -> UnifiedPost:
     trace_data = data.get("trace")
-    trace = None
-    if trace_data:
-        trace = MessageTrace(
-            origin_id=trace_data["origin_id"],
-            path=[Platform(item) for item in trace_data.get("path") or []],
-        )
+    trace = MessageTrace(origin_id=trace_data["origin_id"], path=list(trace_data.get("path") or [])) if trace_data else None
     return UnifiedPost(
         source_platform=Platform(data["source_platform"]),
+        source_adapter_id=data.get("source_adapter_id") or data["source_platform"],
         source_chat_id=data["source_chat_id"],
         source_message_id=data["source_message_id"],
         text=data.get("text"),
@@ -74,8 +68,10 @@ def unified_post_from_dict(data: dict) -> UnifiedPost:
 def route_to_dict(route: Route) -> dict:
     return {
         "id": route.id,
+        "source_adapter_id": route.source_adapter_id,
         "source_platform": route.source_platform.value,
         "source_chat_id": route.source_chat_id,
+        "target_adapter_id": route.target_adapter_id,
         "target_platform": route.target_platform.value,
         "target_chat_id": route.target_chat_id,
         "enabled": route.enabled,
@@ -85,8 +81,10 @@ def route_to_dict(route: Route) -> dict:
 def route_from_dict(data: dict) -> Route:
     return Route(
         id=data["id"],
+        source_adapter_id=data.get("source_adapter_id") or data["source_platform"],
         source_platform=Platform(data["source_platform"]),
         source_chat_id=data["source_chat_id"],
+        target_adapter_id=data.get("target_adapter_id") or data["target_platform"],
         target_platform=Platform(data["target_platform"]),
         target_chat_id=data["target_chat_id"],
         enabled=bool(data.get("enabled", True)),

@@ -19,8 +19,10 @@ class QueueService:
         return await self.delivery_jobs_repo.enqueue(
             route_id=route.id,
             target_platform=route.target_platform.value,
+            target_adapter_id=route.target_adapter_id,
             target_chat_id=route.target_chat_id,
             origin_platform=post.source_platform.value,
+            origin_adapter_id=post.source_adapter_id,
             origin_chat_id=post.source_chat_id,
             origin_message_id=post.source_message_id,
             payload=payload,

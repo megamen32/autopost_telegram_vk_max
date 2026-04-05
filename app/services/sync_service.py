@@ -30,7 +30,7 @@ class SyncService:
 
         destinations = await self.routing_service.resolve_destinations(post)
         for route, rule in destinations:
-            if not self.lineage_service.can_deliver(post, route.target_platform):
+            if not self.lineage_service.can_deliver(post, route.target_adapter_id):
                 continue
 
             post_copy = deepcopy(post)
@@ -43,7 +43,7 @@ class SyncService:
                 target_platform=route.target_platform,
                 rule=rule,
             )
-            post_copy = self.lineage_service.extend_trace(post_copy, route.target_platform)
+            post_copy = self.lineage_service.extend_trace(post_copy, route.target_adapter_id)
             await self.delivery_service.deliver(route, post_copy)
 
         await self.dedup_service.mark_processed(

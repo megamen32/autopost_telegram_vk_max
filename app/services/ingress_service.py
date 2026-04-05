@@ -1,5 +1,4 @@
 from app.adapters.registry import AdapterRegistry
-from app.domain.enums import Platform
 
 
 class IngressService:
@@ -7,8 +6,8 @@ class IngressService:
         self.adapter_registry = adapter_registry
         self.sync_service = sync_service
 
-    async def handle_event(self, platform: Platform, payload: dict) -> None:
-        adapter = self.adapter_registry.get(platform)
+    async def handle_event(self, adapter_instance_id: str, payload: dict) -> None:
+        adapter = self.adapter_registry.get_by_instance(adapter_instance_id)
         post = await adapter.parse_incoming_event(payload)
         if post is None:
             return

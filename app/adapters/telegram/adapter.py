@@ -19,6 +19,7 @@ class TelegramAdapter(BaseAdapter):
     def __init__(
         self,
         *,
+        instance_id: str | None = None,
         api_id: int | None = None,
         api_hash: str | None = None,
         string_session: str | None = None,
@@ -27,7 +28,9 @@ class TelegramAdapter(BaseAdapter):
         receive_updates: bool = True,
         sequential_updates: bool = False,
         allowed_source_chat_ids: list[str] | None = None,
+        check_all_chats: bool = False,
     ) -> None:
+        super().__init__(instance_id=instance_id)
         self.api_id = api_id
         self.api_hash = api_hash
         self.string_session = string_session
@@ -36,6 +39,7 @@ class TelegramAdapter(BaseAdapter):
         self.receive_updates = receive_updates
         self.sequential_updates = sequential_updates
         self.allowed_source_chat_ids = set(allowed_source_chat_ids or [])
+        self.check_all_chats = check_all_chats
 
         self._client = None
         self._on_post: Callable[[UnifiedPost], Awaitable[None]] | None = None
@@ -74,6 +78,7 @@ class TelegramAdapter(BaseAdapter):
 
         return UnifiedPost(
             source_platform=self.platform,
+            source_adapter_id=self.instance_id,
             source_chat_id=str(chat_id),
             source_message_id=str(message_id),
             text=payload.get("text"),
@@ -159,6 +164,7 @@ class TelegramAdapter(BaseAdapter):
 
         return UnifiedPost(
             source_platform=self.platform,
+            source_adapter_id=self.instance_id,
             source_chat_id=source_chat_id,
             source_message_id=str(message.id),
             text=message.message,

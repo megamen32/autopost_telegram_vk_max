@@ -18,12 +18,13 @@ class MediaItem:
 @dataclass(slots=True)
 class MessageTrace:
     origin_id: str
-    path: list[Platform] = field(default_factory=list)
+    path: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
 class UnifiedPost:
     source_platform: Platform
+    source_adapter_id: str
     source_chat_id: str
     source_message_id: str
     text: str | None = None

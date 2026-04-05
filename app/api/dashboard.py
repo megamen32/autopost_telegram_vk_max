@@ -4,15 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_settings
 from app.dependencies import get_container, get_session
-from app.domain.enums import Platform
+from app.repositories.adapter_instances_repo import AdapterInstancesRepo
 from app.repositories.dashboard_repo import DashboardRepo
 from app.repositories.delivery_jobs_repo import DeliveryJobsRepo
 from app.repositories.message_links_repo import MessageLinksRepo
 from app.repositories.routes_repo import RoutesRepo
 from app.repositories.rules_repo import RulesRepo
-from app.services.platform_settings_service import build_platform_status, load_platform_settings_from_db
+from app.utils.crypto import SecretBox
 
 router = APIRouter(tags=["dashboard"])
 
@@ -27,11 +26,11 @@ async def webui_index():
 
 @router.get("/api/dashboard/overview")
 async def dashboard_overview(container=Depends(get_container), session: AsyncSession = Depends(get_session)):
-    settings = get_settings()
     repo = DashboardRepo(session)
     overview = await repo.get_overview()
-    effective = await load_platform_settings_from_db(container.session_factory, settings.secrets_encryption_key)
-    overview["platform_status"] = build_platform_status(effective)
+    instances_repo = AdapterInstancesRepo(session, SecretBox(container.secrets_encryption_key))
+    overview["adapter_instances"] = await instances_repo.list_all(include_secrets=False)
+    overview["adapter_runtime_instances"] = container.adapter_registry.list_instances()
     overview["available_platforms"] = container.adapter_registry.list_platforms()
     return overview
 
@@ -66,14 +65,3 @@ async def dashboard_requeue_job(job_id: int, session: AsyncSession = Depends(get
         raise HTTPException(status_code=404, detail="Job not found")
     await session.commit()
     return {"ok": True}
-
-
-@router.post("/api/dashboard/platforms/{platform}/toggle-updates")
-async def dashboard_toggle_platform_updates(platform: Platform, enabled: bool):
-    raise HTTPException(
-        status_code=501,
-        detail=(
-            f"Runtime editing of platform adapter settings for {platform.value} is not implemented yet. "
-            "Runtime adapter reload is not implemented yet. Platform settings are stored in DB and applied on restart."
-        ),
-    )

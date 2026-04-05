@@ -47,13 +47,15 @@ async def process_due_delivery_jobs(container: "Container") -> int:
                 payload = job["payload"]
                 route = route_from_dict(payload["route"])
                 post = unified_post_from_dict(payload["post"])
-                adapter = container.adapter_registry.get(route.target_platform)
+                adapter = container.adapter_registry.get_by_instance(route.target_adapter_id)
                 target_message_id = await adapter.publish_post(route.target_chat_id, post)
                 await message_links_repo.create(
                     origin_platform=post.source_platform.value,
+                    origin_adapter_id=post.source_adapter_id,
                     origin_chat_id=post.source_chat_id,
                     origin_message_id=post.source_message_id,
                     target_platform=route.target_platform.value,
+                    target_adapter_id=route.target_adapter_id,
                     target_chat_id=route.target_chat_id,
                     target_message_id=target_message_id,
                 )

@@ -1,6 +1,6 @@
 from sqlalchemy import func, select
 
-from app.db.models import DeliveryJobORM, MessageLinkORM, ProcessedEventORM, RouteORM, SyncRuleORM
+from app.db.models import AdapterInstanceORM, DeliveryJobORM, MessageLinkORM, ProcessedEventORM, RouteORM, SyncRuleORM
 from app.repositories.base import SQLAlchemyRepo
 
 
@@ -34,6 +34,8 @@ class DashboardRepo(SQLAlchemyRepo):
             await self.session.scalar(select(func.count()).select_from(SyncRuleORM).where(SyncRuleORM.enabled.is_(True))) or 0
         )
 
+        adapter_instances_total = await self.session.scalar(select(func.count()).select_from(AdapterInstanceORM)) or 0
+
         return {
             "jobs_total": jobs_total,
             "jobs_by_status": jobs_by_status,
@@ -42,6 +44,7 @@ class DashboardRepo(SQLAlchemyRepo):
             "processed_events_total": processed_events_total,
             "routes_total": routes_total,
             "enabled_routes": enabled_routes,
+            "adapter_instances_total": adapter_instances_total,
             "rules_total": rules_total,
             "enabled_rules": enabled_rules,
         }

@@ -9,7 +9,7 @@ class RoutingService:
 
     async def resolve_destinations(self, post: UnifiedPost) -> list[tuple[Route, SyncRule]]:
         routes = await self.routes_repo.list_enabled_for_source(
-            source_platform=post.source_platform,
+            source_adapter_id=post.source_adapter_id,
             source_chat_id=post.source_chat_id,
         )
 

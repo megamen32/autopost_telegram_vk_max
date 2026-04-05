@@ -30,8 +30,10 @@ class SyncRule:
 @dataclass(slots=True)
 class Route:
     id: str
+    source_adapter_id: str
     source_platform: Platform
     source_chat_id: str
+    target_adapter_id: str
     target_platform: Platform
     target_chat_id: str
     enabled: bool = True

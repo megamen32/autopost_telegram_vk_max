@@ -20,6 +20,7 @@ class MaxAdapter(BaseAdapter):
     def __init__(
         self,
         *,
+        instance_id: str | None = None,
         token: str | None = None,
         webhook_url: str | None = None,
         secret: str | None = None,
@@ -27,6 +28,7 @@ class MaxAdapter(BaseAdapter):
         receive_updates: bool = True,
         allowed_source_chat_ids: list[str] | None = None,
     ) -> None:
+        super().__init__(instance_id=instance_id)
         self.token = token
         self.webhook_url = webhook_url
         self.secret = secret
@@ -87,6 +89,7 @@ class MaxAdapter(BaseAdapter):
 
         return UnifiedPost(
             source_platform=self.platform,
+            source_adapter_id=self.instance_id,
             source_chat_id=source_chat_id,
             source_message_id=str(message_id),
             text=message_body.get("text"),
