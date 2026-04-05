@@ -86,7 +86,51 @@ function fieldInput(field, value, secretPresent=false){ const val=value??field.d
   if(field.field_type==='list_str'){return `<input ${attrs} value="${esc((val||[]).join(', '))}" placeholder="id1, id2">`}
   if(field.secret){return `<input ${attrs} type="password" placeholder="${secretPresent?'Оставь пустым чтобы не менять':'Введите значение'}">`}
   return `<input ${attrs} value="${esc(val)}">`; }
-function renderOverview(){ const o=state.overview||{}; $('#overview').innerHTML=`<div class="grid"><div class="card"><h3>Сводка</h3><div class="muted">adapter instances: ${o.adapter_instances_total||0}</div><div class="muted">routes: ${o.routes_total||0}</div><div class="muted">rules: ${o.rules_total||0}</div><div class="muted">jobs: ${o.jobs_total||0}</div><div class="muted">links: ${o.links_total||0}</div></div><div class="card"><h3>Runtime adapters</h3>${(o.adapter_runtime_instances||[]).map(x=>`<div class="mono">${esc(x.instance_id)} <span class="pill">${esc(x.platform)}</span></div>`).join('')||'<div class="muted">пока нет</div>'}</div><div class="card"><h3>Jobs by status</h3>${Object.entries(o.jobs_by_status||{}).map(([k,v])=>`<div>${esc(k)}: ${v}</div>`).join('')||'<div class="muted">пусто</div>'}</div></div>` }
+function isFieldVisible(values, rule){
+  if(!rule) return true;
+  if(rule.all) return rule.all.every(child => isFieldVisible(values, child));
+  if(rule.any) return rule.any.some(child => isFieldVisible(values, child));
+  if(!rule.field) return true;
+  const value = values[rule.field];
+  if(rule.eq !== undefined && rule.eq !== null && value !== rule.eq) return false;
+  if(rule.ne !== undefined && rule.ne !== null && value === rule.ne) return false;
+  if(Array.isArray(rule.in) && !rule.in.includes(value)) return false;
+  if(Array.isArray(rule.not_in) && rule.not_in.includes(value)) return false;
+  if(rule.is_true === true && value !== true) return false;
+  if(rule.is_false === true && value !== false) return false;
+  if(rule.is_none === true && value !== null && value !== undefined && value !== '') return false;
+  if(rule.is_not_none === true && (value === null || value === undefined || value === '')) return false;
+  return true;
+}
+function collectFormValues(form, def){
+  const values = {};
+  for(const field of (def.fields || [])){
+    const el = form.querySelector(`[data-name="${field.name}"]`);
+    if(!el) continue;
+    values[field.name] = valueFromField(field, el.value);
+  }
+  return values;
+}
+function updateFieldVisibility(form, def){
+  const values = collectFormValues(form, def);
+  for(const field of (def.fields || [])){
+    const wrapper = form.querySelector(`[data-field-wrapper="1"][data-field-name="${field.name}"]`);
+    if(!wrapper) continue;
+    const visible = isFieldVisible(values, field.visible_when);
+    wrapper.classList.toggle('hidden', !visible);
+  }
+}
+function buildDiagnostics(){
+  const o = state.overview || {};
+  const diagnostics = [];
+  if ((o.rules_total || 0) === 0) diagnostics.push('No rules configured');
+  if ((o.routes_total || 0) > 0 && (o.rules_total || 0) === 0) diagnostics.push('Route exists but no matching rule');
+  const disabledUpdates = (state.instances || []).filter(x => x.enabled && x.config && x.config.receive_updates === false);
+  if (disabledUpdates.length) diagnostics.push('Adapter receives no updates: ' + disabledUpdates.map(x => x.id).join(', '));
+  if ((o.jobs_total || 0) === 0) diagnostics.push('Delivery queue is idle');
+  return diagnostics;
+}
+function renderOverview(){ const o=state.overview||{}; const diagnostics = buildDiagnostics(); $('#overview').innerHTML=`<div class="grid"><div class="card"><h3>Сводка</h3><div class="muted">adapter instances: ${o.adapter_instances_total||0}</div><div class="muted">routes: ${o.routes_total||0}</div><div class="muted">rules: ${o.rules_total||0}</div><div class="muted">jobs: ${o.jobs_total||0}</div><div class="muted">links: ${o.links_total||0}</div></div><div class="card"><h3>Runtime adapters</h3>${(o.adapter_runtime_instances||[]).map(x=>`<div class="mono">${esc(x.instance_id)} <span class="pill">${esc(x.platform)}</span></div>`).join('')||'<div class="muted">пока нет</div>'}</div><div class="card"><h3>Jobs by status</h3>${Object.entries(o.jobs_by_status||{}).map(([k,v])=>`<div>${esc(k)}: ${v}</div>`).join('')||'<div class="muted">пусто</div>'}</div><div class="card"><h3>Диагностика</h3>${diagnostics.length ? diagnostics.map(x=>`<div class="muted">${esc(x)}</div>`).join('') : '<div class="muted">Явных проблем не найдено</div>'}</div></div>` }
 function renderDefinitionsSelect(){ $('#newAdapterKey').innerHTML=state.defs.map(d=>`<option value="${esc(d.adapter_key)}">${esc(d.title)}</option>`).join('') }
 function buildInstanceCard(instance){ const def=state.defs.find(d=>d.adapter_key===instance.adapter_key); if(!def) return ''; const cfg=instance.config||{}; const present=instance.secret_fields_present||{};
  const simple=def.fields.filter(f=>f.scope==='simple'); const adv=def.fields.filter(f=>f.scope==='advanced');
