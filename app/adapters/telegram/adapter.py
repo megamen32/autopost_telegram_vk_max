@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from pathlib import Path
 from typing import Awaitable, Callable
 
@@ -102,7 +103,7 @@ class TelegramAdapter(BaseAdapter):
 
     async def publish_post(self, chat_id: str, post: UnifiedPost) -> str:
         client = await self._get_client(required=True)
-        entity = await client.get_input_entity(chat_id)
+        target = self._normalize_target_entity(chat_id)
 
         media_items = list(post.media)
         files: list[str] = []
@@ -111,17 +112,17 @@ class TelegramAdapter(BaseAdapter):
             if path:
                 files.append(path)
 
-        self._log_info(f"telegram publish to chat_id={chat_id}")
+        self._log_info(f"telegram publish to chat_id={chat_id} normalized_target={target!r}")
         if files:
             result = await client.send_file(
-                entity=entity,
+                entity=target,
                 file=files if len(files) > 1 else files[0],
                 caption=post.text or "",
                 force_document=False,
                 supports_streaming=any(item.type == ContentType.VIDEO for item in media_items),
             )
         else:
-            result = await client.send_message(entity=entity, message=post.text or "")
+            result = await client.send_message(entity=target, message=post.text or "")
 
         if isinstance(result, list):
             result_id = str(result[0].id)
@@ -132,13 +133,63 @@ class TelegramAdapter(BaseAdapter):
 
     async def delete_post(self, chat_id: str, message_id: str) -> None:
         client = await self._get_client(required=True)
-        entity = await client.get_input_entity(chat_id)
-        await client.delete_messages(entity=entity, message_ids=[int(message_id)])
+        target = self._normalize_target_entity(chat_id)
+        await client.delete_messages(entity=target, message_ids=[int(message_id)])
 
     async def edit_post(self, chat_id: str, message_id: str, post: UnifiedPost) -> None:
         client = await self._get_client(required=True)
-        entity = await client.get_input_entity(chat_id)
-        await client.edit_message(entity=entity, message=int(message_id), text=post.text or "")
+        target = self._normalize_target_entity(chat_id)
+        await client.edit_message(entity=target, message=int(message_id), text=post.text or "")
+
+    async def resolve_chat_reference(self, value: str | int) -> str:
+        normalized = self._normalize_target_entity(value)
+        if isinstance(normalized, int):
+            return str(normalized)
+
+        ref = self._extract_public_reference(str(normalized))
+        if ref is None:
+            return str(normalized)
+
+        client = await self._get_client(required=True)
+        entity = await client.get_entity(ref)
+        entity_id = self._extract_chat_id(entity) or self._extract_peer_id(getattr(entity, "peer_id", None))
+        if entity_id is None:
+            raise RuntimeError(f"Could not resolve Telegram reference: {value}")
+        return str(entity_id)
+
+    def _extract_public_reference(self, value: str) -> str | None:
+        stripped = value.strip()
+        if not stripped:
+            return None
+        if stripped.lstrip("-").isdigit():
+            return None
+        if stripped.startswith("@"):
+            return stripped[1:]
+
+        match = re.match(r"https?://t\.me/([A-Za-z0-9_]+)/?$", stripped)
+        if match:
+            return match.group(1)
+
+        match = re.match(r"https?://telegram\.me/([A-Za-z0-9_]+)/?$", stripped)
+        if match:
+            return match.group(1)
+
+        if re.fullmatch(r"[A-Za-z0-9_]{5,}", stripped):
+            return stripped
+        return None
+
+    def _normalize_target_entity(self, value: str | int):
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped.lstrip("-").isdigit():
+                return int(stripped)
+            public_ref = self._extract_public_reference(stripped)
+            if public_ref is not None:
+                return public_ref
+            return stripped
+        return value
 
     async def supports_feature(self, feature: str) -> bool:
         supported = {"text", "image", "video", "audio", "document", "repost"}

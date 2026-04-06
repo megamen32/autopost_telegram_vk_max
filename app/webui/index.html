@@ -37,9 +37,9 @@
         <div class="row3">
           <label><span class="label">Route ID</span><input name="id" required></label>
           <label><span class="label">Source adapter</span><select name="source_adapter_id"></select></label>
-          <label><span class="label">Source chat id</span><input name="source_chat_id" required></label>
+          <label><span class="label">Source chat id / ссылка</span><input name="source_chat_id" required><span class="help">Можно указать числовой chat id, @username или ссылку вида https://t.me/username</span></label>
           <label><span class="label">Target adapter</span><select name="target_adapter_id"></select></label>
-          <label><span class="label">Target chat id</span><input name="target_chat_id" required></label>
+          <label><span class="label">Target chat id / ссылка</span><input name="target_chat_id" required><span class="help">Можно указать числовой chat id, @username или ссылку вида https://t.me/username</span></label>
           <label><span class="label">Enabled</span><select name="enabled"><option value="true">true</option><option value="false">false</option></select></label>
         </div>
         <div class="inline" style="margin-top:8px"><button class="btn" type="submit">Сохранить маршрут</button><button class="btn secondary" type="button" id="routeDeleteBtn">Удалить по id</button></div>
@@ -80,6 +80,7 @@ async function saveRoutePolicy(e){ e.preventDefault(); const form=e.currentTarge
 function renderJobs(){ $('#jobs').innerHTML='<table><thead><tr><th>id</th><th>status</th><th>target</th><th>origin</th><th>attempts</th><th>error</th><th></th></tr></thead><tbody>'+(state.jobs||[]).map(j=>`<tr><td>${j.id}</td><td>${esc(j.status)}</td><td>${esc(j.target_adapter_id||j.target_platform)} / <span class="mono">${esc(j.target_chat_id)}</span></td><td>${esc(j.origin_adapter_id||j.origin_platform)} / <span class="mono">${esc(j.origin_chat_id)}:${esc(j.origin_message_id)}</span></td><td>${j.attempts}/${j.max_attempts}</td><td class="mono">${esc(j.last_error||'')}</td><td>${['dead_letter','retrying'].includes(j.status)?`<button class="btn secondary" onclick="requeueJob(${j.id})">requeue</button>`:''}</td></tr>`).join('')+'</tbody></table>' }
 function renderLinks(){ $('#links').innerHTML='<table><thead><tr><th>origin</th><th>target</th><th>created</th></tr></thead><tbody>'+(state.links||[]).map(l=>`<tr><td>${esc(l.origin_adapter_id||l.origin_platform)} / <span class="mono">${esc(l.origin_chat_id)}:${esc(l.origin_message_id)}</span></td><td>${esc(l.target_adapter_id||l.target_platform)} / <span class="mono">${esc(l.target_chat_id)}:${esc(l.target_message_id)}</span></td><td>${esc(l.created_at||'')}</td></tr>`).join('')+'</tbody></table>' }
 async function requeueJob(id){ await api('/api/dashboard/jobs/'+id+'/requeue',{method:'POST'}); toast('Job requeued'); await refreshJobs() }
+async function refreshJobs(){ state.overview=await api('/api/dashboard/overview'); state.jobs=await api('/api/dashboard/jobs'); state.links=await api('/api/dashboard/message-links'); renderOverview(); renderJobs(); renderLinks(); }
 async function refreshAll(){ state.defs=await api('/api/adapter-definitions'); state.instances=await api('/api/adapter-instances'); state.overview=await api('/api/dashboard/overview'); state.routes=await api('/api/dashboard/routes'); state.jobs=await api('/api/dashboard/jobs'); state.links=await api('/api/dashboard/message-links'); renderDefinitionsSelect(); renderOverview(); renderInstances(); fillRouteOptions(); renderRoutes(); renderJobs(); renderLinks(); }
 $('#createInstanceBtn').onclick=createInstance; $('#routeForm').onsubmit=saveRoute; $('#routeDeleteBtn').onclick=async()=>{const id=$('#routeForm [name="id"]').value; if(!id) return; await api('/routes/'+encodeURIComponent(id),{method:'DELETE'}); toast('Route deleted'); await refreshAll()}; refreshAll().catch(e=>toast(e.message));
 </script></body></html>
