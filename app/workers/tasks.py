@@ -70,6 +70,10 @@ async def process_due_delivery_jobs(container: "Container") -> int:
             except Exception as exc:
                 await heartbeat.stop()
                 logger.exception("delivery job failed | %s", {"job_id": job["id"], "target_platform": job["target_platform"]})
+                try:
+                    adapter._log_error(f"delivery publish failed: {exc}", code="delivery_publish_failed", job_id=job["id"], route_id=route.id, target_chat_id=route.target_chat_id)
+                except Exception:
+                    pass
                 media_types = [item.type for item in unified_post_from_dict(job["payload"]["post"]).media]
                 decision = retry_policy.decide(
                     platform=Platform(job["target_platform"]),

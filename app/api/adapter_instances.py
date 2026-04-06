@@ -6,6 +6,9 @@ from app.dependencies import get_container, get_session
 from app.repositories.adapter_instances_repo import AdapterInstancesRepo
 from app.utils.crypto import SecretBox
 from app.schemas.api import AdapterInstanceUpsertSchema
+from app.utils.logging import get_logger
+
+logger = get_logger("autopost_sync.app")
 
 router = APIRouter(tags=["adapter_instances"])
 
@@ -29,6 +32,7 @@ async def create_or_update_adapter_instance(payload: AdapterInstanceUpsertSchema
     except KeyError:
         raise HTTPException(status_code=400, detail='Unknown adapter_key')
     repo = AdapterInstancesRepo(session, SecretBox(container.secrets_encryption_key))
+    logger.info("adapter instance upsert | %s", {"adapter_key": payload.adapter_key, "display_name": payload.display_name, "instance_id": payload.id})
     return await repo.upsert(
         instance_id=payload.id,
         adapter_key=payload.adapter_key,
@@ -43,6 +47,7 @@ async def create_or_update_adapter_instance(payload: AdapterInstanceUpsertSchema
 @router.delete('/api/adapter-instances/{instance_id}')
 async def delete_adapter_instance(instance_id: str, session: AsyncSession = Depends(get_session), container=Depends(get_container)):
     repo = AdapterInstancesRepo(session, SecretBox(container.secrets_encryption_key))
+    logger.info("adapter instance delete | %s", {"instance_id": instance_id})
     ok = await repo.delete(instance_id)
     if not ok:
         raise HTTPException(status_code=404, detail='Adapter instance not found')

@@ -3,7 +3,13 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from collections import deque
+from threading import Lock
 from typing import Any
+
+
+_GLOBAL_LOGS = deque(maxlen=500)
+_GLOBAL_LOCK = Lock()
 
 
 def _level(value: str | None, default: int = logging.INFO) -> int:
@@ -21,6 +27,29 @@ def format_extra(extra: dict[str, Any] | None) -> str:
         return " | " + repr(extra)
 
 
+class GlobalDiagnosticsHandler(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        if not str(record.name).startswith('autopost_sync'):
+            return
+        try:
+            msg = self.format(record)
+        except Exception:
+            msg = record.getMessage()
+        payload = {
+            'ts': getattr(record, 'created', None),
+            'level': record.levelname,
+            'logger': record.name,
+            'message': msg,
+        }
+        with _GLOBAL_LOCK:
+            _GLOBAL_LOGS.appendleft(payload)
+
+
+def get_global_logs() -> list[dict[str, Any]]:
+    with _GLOBAL_LOCK:
+        return list(_GLOBAL_LOGS)
+
+
 def _ensure_handler(logger: logging.Logger, *, level: int, marker: str) -> None:
     if any(getattr(h, marker, False) for h in logger.handlers):
         return
@@ -31,13 +60,23 @@ def _ensure_handler(logger: logging.Logger, *, level: int, marker: str) -> None:
     logger.addHandler(handler)
 
 
+def _ensure_global_handler(logger: logging.Logger, *, marker: str) -> None:
+    if any(getattr(h, marker, False) for h in logger.handlers):
+        return
+    handler = GlobalDiagnosticsHandler()
+    setattr(handler, marker, True)
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    logger.addHandler(handler)
+
+
 def setup_logging(settings) -> None:
     level = _level(getattr(settings, "log_level", None), logging.INFO)
 
     root = logging.getLogger()
-    if root.level > level or root.level == logging.NOTSET:
-        root.setLevel(level)
+    root.setLevel(level)
     _ensure_handler(root, level=level, marker="_autopost_sync_root")
+    _ensure_global_handler(root, marker='_autopost_sync_global')
 
     project_logger = logging.getLogger("autopost_sync")
     project_logger.setLevel(level)

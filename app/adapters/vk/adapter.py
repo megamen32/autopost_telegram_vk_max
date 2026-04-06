@@ -34,6 +34,7 @@ class VkAdapter(BaseAdapter):
         receive_mode: str = "long_poll",
         allowed_source_chat_ids: list[str] | None = None,
         long_poll_wait_seconds: int = 25,
+        user_access_token_for_media: str | None = None,
         log_level: str = "INFO",
     ) -> None:
         super().__init__(instance_id=instance_id, log_level=log_level)
@@ -45,8 +46,10 @@ class VkAdapter(BaseAdapter):
         self.receive_updates = receive_updates
         self.receive_mode = receive_mode or "long_poll"
         self.long_poll_wait_seconds = long_poll_wait_seconds
+        self.user_access_token_for_media = user_access_token_for_media
         self.allowed_source_chat_ids = set(allowed_source_chat_ids or [])
         self._client: VkClient | None = None
+        self._media_client: VkClient | None = None
         self._on_post: Callable[[UnifiedPost], Awaitable[None]] | None = None
         self._polling_task: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
@@ -61,6 +64,12 @@ class VkAdapter(BaseAdapter):
                 raise RuntimeError("VkAdapter is not configured")
             self._client = VkClient(self.token, api_version=self.api_version)
         return self._client
+
+    def _get_media_client(self) -> VkClient:
+        token = self.user_access_token_for_media or self.token
+        if self._media_client is None or self._media_client.token != token:
+            self._media_client = VkClient(token, api_version=self.api_version)
+        return self._media_client
 
     async def startup(self, on_post: Callable[[UnifiedPost], Awaitable[None]] | None = None) -> None:
         self._on_post = on_post
@@ -90,9 +99,6 @@ class VkAdapter(BaseAdapter):
             return self.confirmation_token or "ok"
         if self.secret and payload.get("secret") != self.secret:
             raise HTTPException(status_code=403, detail="Invalid VK callback secret")
-        if event_type in {"message_new", "wall_post_new"}:
-            self._log_warning("vk attachment unsupported or unresolved", media_type=item.type.value, file_id=item.file_id, url=item.url)
-        return None
         return "ok"
 
     async def parse_incoming_event(self, payload: dict) -> UnifiedPost | None:
@@ -317,21 +323,25 @@ class VkAdapter(BaseAdapter):
         if isinstance(vk_attachment, str) and _ATTACHMENT_RE.match(vk_attachment):
             return vk_attachment
 
+        media_client = self._get_media_client()
+
         if item.type == ContentType.IMAGE and item.url:
             self._log_info("vk image upload start", source=item.url, filename=item.filename)
-            upload_server = await client.call_method(
+            if media_client.token == self.token:
+                self._log_warning("vk image upload uses group token; some methods may fail. Set user_access_token_for_media for reliable media uploads")
+            upload_server = await media_client.call_method(
                 "photos.getWallUploadServer",
                 {"group_id": abs(owner_id)},
             )
-            content = await client.download_bytes(item.url)
-            upload_result = await client.upload_file(
+            content = await media_client.download_bytes(item.url)
+            upload_result = await media_client.upload_file(
                 upload_server["upload_url"],
                 form_field="photo",
                 filename=item.filename or "image.jpg",
                 content=content,
                 content_type=item.mime_type,
             )
-            saved = await client.call_method(
+            saved = await media_client.call_method(
                 "photos.saveWallPhoto",
                 {
                     "group_id": abs(owner_id),
@@ -346,34 +356,32 @@ class VkAdapter(BaseAdapter):
             return attachment
 
         if item.type == ContentType.DOCUMENT and item.url:
-            upload_server = await client.call_method(
+            upload_server = await media_client.call_method(
                 "docs.getWallUploadServer",
                 {"group_id": abs(owner_id)},
             )
-            content = await client.download_bytes(item.url)
-            upload_result = await client.upload_file(
+            content = await media_client.download_bytes(item.url)
+            upload_result = await media_client.upload_file(
                 upload_server["upload_url"],
                 form_field="file",
                 filename=item.filename or "document.bin",
                 content=content,
                 content_type=item.mime_type,
             )
-            saved = await client.call_method(
-                "docs.save",
-                {"file": upload_result["file"]},
-            )
+            saved = await media_client.call_method("docs.save", {"file": upload_result["file"]})
             doc = saved["doc"] if isinstance(saved, dict) else saved[0]
             return f"doc{doc['owner_id']}_{doc['id']}"
 
         if item.type == ContentType.VIDEO:
             if item.file_id and _ATTACHMENT_RE.match(str(item.file_id)):
                 return str(item.file_id)
-            if item.url:
-                return None
+            self._log_warning("vk video upload is not implemented yet; falling back to link if available", file_id=item.file_id, url=item.url)
+            return None
 
         if item.type == ContentType.AUDIO:
             if item.file_id and _ATTACHMENT_RE.match(str(item.file_id)):
                 return str(item.file_id)
+            self._log_warning("vk audio upload is not implemented yet; falling back to link if available", file_id=item.file_id, url=item.url)
             return None
 
         return None

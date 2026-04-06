@@ -11,6 +11,7 @@ from app.repositories.delivery_jobs_repo import DeliveryJobsRepo
 from app.repositories.message_links_repo import MessageLinksRepo
 from app.repositories.routes_repo import RoutesRepo
 from app.utils.crypto import SecretBox
+from app.utils.logging import get_global_logs
 
 router = APIRouter(tags=["dashboard"])
 
@@ -71,6 +72,7 @@ async def dashboard_runtime_adapters(container=Depends(get_container)):
 async def dashboard_diagnostics(container=Depends(get_container), session: AsyncSession = Depends(get_session)):
     return {
         "adapter_runtime_statuses": container.adapter_runtime_monitor.snapshot(),
-        "global_logs": container.adapter_runtime_monitor.global_logs(),
+        "global_logs": get_global_logs(),
+        "adapter_global_logs": container.adapter_runtime_monitor.global_logs(),
         "routes": await RoutesRepo(session).list_all(),
     }

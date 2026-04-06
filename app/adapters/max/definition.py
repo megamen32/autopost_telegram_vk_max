@@ -18,6 +18,7 @@ def create_max_adapter(instance_id: str, config: dict, secrets: dict):
         prefer_official_sdk=bool(config.get("prefer_official_sdk", True)),
         long_poll_timeout_seconds=int(config.get("long_poll_timeout_seconds") or 30),
         long_poll_limit=int(config.get("long_poll_limit") or 100),
+        log_level=(config.get("log_level") or "INFO"),
     )
 
 
@@ -39,6 +40,7 @@ MAX_DEFINITION = AdapterDefinition(
         AdapterSettingField("allowed_source_chat_ids", "Разрешённые source chat id", "list_str", "advanced", False, False, "Если список не пустой, входящие обновления принимаются только из указанных чатов.", visible_when=when_true("receive_updates")),
         AdapterSettingField("long_poll_timeout_seconds", "Long poll timeout, сек", "int", "advanced", False, False, "Сколько секунд держать один запрос /updates открытым в режиме long polling.", default=30, visible_when=when_all(when_true("receive_updates"), when_eq("receive_mode", "long_poll"))),
         AdapterSettingField("long_poll_limit", "Long poll batch size", "int", "advanced", False, False, "Сколько событий максимум забирать за один long poll запрос.", default=100, visible_when=when_all(when_true("receive_updates"), when_eq("receive_mode", "long_poll"))),
+        AdapterSettingField("log_level", "Уровень логов адаптера", "choice", "advanced", False, False, "Сколько логов и диагностики сохранять для этого адаптера.", options=[{"value": "ERROR", "label": "ERROR"}, {"value": "WARNING", "label": "WARNING"}, {"value": "INFO", "label": "INFO"}, {"value": "DEBUG", "label": "DEBUG"}], default="INFO"),
     ],
     factory=create_max_adapter,
 )

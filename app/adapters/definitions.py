@@ -58,6 +58,7 @@ def _vk_factory(instance_id: str, config: dict[str, any], secrets: dict[str, any
         receive_mode=config.get("receive_mode") or "long_poll",
         allowed_source_chat_ids=config.get("allowed_source_chat_ids") or [],
         long_poll_wait_seconds=int(config.get("long_poll_wait_seconds") or 25),
+        user_access_token_for_media=secrets.get("user_access_token_for_media"),
         log_level=(config.get("log_level") or "INFO"),
     )
 
@@ -79,6 +80,8 @@ VK_DEFINITION = AdapterDefinition(
         AdapterSettingField("confirmation_token", "Confirmation token", "str", "advanced", False, True, "Нужен только для webhook-режима Callback API, когда VK присылает событие confirmation.", visible_when=when_all(when_true("receive_updates"), when_eq("receive_mode", "webhook"))),
         AdapterSettingField("secret", "Webhook secret", "str", "advanced", False, True, "Секрет Callback API. Проверяется только в webhook-режиме.", visible_when=when_all(when_true("receive_updates"), when_eq("receive_mode", "webhook"))),
         AdapterSettingField("long_poll_wait_seconds", "Long poll wait, сек", "int", "advanced", False, False, "Сколько секунд держать одно long poll соединение с VK открытым.", default=25, visible_when=when_all(when_true("receive_updates"), when_eq("receive_mode", "long_poll"))),
+        AdapterSettingField("user_access_token_for_media", "User token для медиа", "str", "advanced", False, True, "Пользовательский access token VK для загрузки фото/видео/документов. Нужен, потому что некоторые media upload методы недоступны с group token.") ,
+        AdapterSettingField("log_level", "Уровень логов адаптера", "choice", "advanced", False, False, "Сколько логов и диагностики сохранять для этого адаптера.", options=[{"value": "ERROR", "label": "ERROR"}, {"value": "WARNING", "label": "WARNING"}, {"value": "INFO", "label": "INFO"}, {"value": "DEBUG", "label": "DEBUG"}], default="INFO"),
     ],
     factory=_vk_factory,
 )
