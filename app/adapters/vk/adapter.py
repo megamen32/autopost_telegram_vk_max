@@ -34,8 +34,9 @@ class VkAdapter(BaseAdapter):
         receive_mode: str = "long_poll",
         allowed_source_chat_ids: list[str] | None = None,
         long_poll_wait_seconds: int = 25,
+        log_level: str = "INFO",
     ) -> None:
-        super().__init__(instance_id=instance_id)
+        super().__init__(instance_id=instance_id, log_level=log_level)
         self.token = token
         self.group_id = group_id
         self.api_version = api_version

@@ -13,23 +13,30 @@ from app.domain.models import UnifiedPost
 class BaseAdapter(ABC):
     platform: Platform
 
-    def __init__(self, *, instance_id: str | None = None) -> None:
+    def __init__(self, *, instance_id: str | None = None, log_level: str = "INFO") -> None:
         self.instance_id = instance_id or self.platform.value
         self.runtime_monitor: AdapterRuntimeMonitor | None = None
+        self.log_level = (log_level or "INFO").upper()
         self.logger = logging.getLogger(f"autopost_sync.adapter.{self.platform.value}.{self.instance_id}")
+        self.logger.setLevel(getattr(logging, self.log_level, logging.INFO))
 
     def attach_runtime_monitor(self, monitor: AdapterRuntimeMonitor) -> None:
         self.runtime_monitor = monitor
         self.runtime_monitor.ensure(self.instance_id, self.platform.value)
 
+    def _should_emit(self, level_name: str) -> bool:
+        current = getattr(logging, self.log_level, logging.INFO)
+        desired = getattr(logging, level_name.upper(), logging.INFO)
+        return desired >= current
+
     def _log_info(self, message: str, **extra) -> None:
         self.logger.info(message)
-        if self.runtime_monitor:
+        if self.runtime_monitor and self._should_emit("INFO"):
             self.runtime_monitor.log(self.instance_id, self.platform.value, "info", message, **extra)
 
     def _log_warning(self, message: str, **extra) -> None:
         self.logger.warning(message)
-        if self.runtime_monitor:
+        if self.runtime_monitor and self._should_emit("WARNING"):
             self.runtime_monitor.log(self.instance_id, self.platform.value, "warning", message, **extra)
 
     def _log_error(self, message: str, *, code: str | None = None, **extra) -> None:

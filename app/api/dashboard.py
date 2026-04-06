@@ -35,24 +35,6 @@ async def dashboard_overview(container=Depends(get_container), session: AsyncSes
     return overview
 
 
-@router.get("/api/dashboard/rules")
-async def dashboard_rules(session: AsyncSession = Depends(get_session)):
-    routes = await RoutesRepo(session).list_all()
-    return [
-        {
-            "route_id": route.id,
-            "source_platform": route.source_platform,
-            "target_platform": route.target_platform,
-            "has_policy": route.has_policy,
-            "enabled": route.policy_enabled if route.has_policy else False,
-            "content_policy": route.content_policy,
-            "repost_mode": route.repost_mode,
-            "copy_text_template": route.copy_text_template,
-        }
-        for route in routes
-    ]
-
-
 @router.get("/api/dashboard/routes")
 async def dashboard_routes(session: AsyncSession = Depends(get_session)):
     return await RoutesRepo(session).list_all()
@@ -83,3 +65,11 @@ async def dashboard_requeue_job(job_id: int, session: AsyncSession = Depends(get
 @router.get("/api/dashboard/runtime-adapters")
 async def dashboard_runtime_adapters(container=Depends(get_container)):
     return container.adapter_runtime_monitor.snapshot()
+
+
+@router.get("/api/dashboard/diagnostics")
+async def dashboard_diagnostics(container=Depends(get_container), session: AsyncSession = Depends(get_session)):
+    return {
+        "adapter_runtime_statuses": container.adapter_runtime_monitor.snapshot(),
+        "routes": await RoutesRepo(session).list_all(),
+    }

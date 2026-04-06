@@ -33,8 +33,9 @@ class MaxAdapter(BaseAdapter):
         prefer_official_sdk: bool = True,
         long_poll_timeout_seconds: int = 30,
         long_poll_limit: int = 100,
+        log_level: str = "INFO",
     ) -> None:
-        super().__init__(instance_id=instance_id)
+        super().__init__(instance_id=instance_id, log_level=log_level)
         self.token = token
         self.webhook_url = webhook_url
         self.secret = secret

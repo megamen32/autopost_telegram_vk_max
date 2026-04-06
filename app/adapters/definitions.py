@@ -19,6 +19,7 @@ def _telegram_factory(instance_id: str, config: dict[str, any], secrets: dict[st
         sequential_updates=bool(config.get("sequential_updates", False)),
         allowed_source_chat_ids=config.get("allowed_source_chat_ids") or [],
         check_all_chats=bool(config.get("check_all_chats", False)),
+        log_level=(config.get("log_level") or "INFO"),
     )
 
 
@@ -39,6 +40,7 @@ TELEGRAM_DEFINITION = AdapterDefinition(
         AdapterSettingField("allowed_source_chat_ids", "Разрешённые source chat id", "list_str", "advanced", False, False, "Если список не пустой, входящие обновления принимаются только из указанных чатов/каналов.", visible_when=when_true("receive_updates")),
         AdapterSettingField("sequential_updates", "Sequential updates", "bool", "advanced", False, False, "Обрабатывать входящие обновления строго последовательно. Полезно для отладки, но снижает throughput.", default=False, visible_when=when_true("receive_updates")),
         AdapterSettingField("check_all_chats", "Проверять все чаты", "bool", "advanced", False, False, "Заготовка под более строгую фильтрацию источников. Пока обычно не требуется.", default=False, visible_when=when_true("receive_updates")),
+AdapterSettingField("log_level", "Уровень логов адаптера", "choice", "advanced", False, False, "Сколько логов и диагностики сохранять для этого адаптера.", options=[{"value": "ERROR", "label": "ERROR"}, {"value": "WARNING", "label": "WARNING"}, {"value": "INFO", "label": "INFO"}, {"value": "DEBUG", "label": "DEBUG"}], default="INFO"),
     ],
     factory=_telegram_factory,
 )
@@ -56,6 +58,7 @@ def _vk_factory(instance_id: str, config: dict[str, any], secrets: dict[str, any
         receive_mode=config.get("receive_mode") or "long_poll",
         allowed_source_chat_ids=config.get("allowed_source_chat_ids") or [],
         long_poll_wait_seconds=int(config.get("long_poll_wait_seconds") or 25),
+        log_level=(config.get("log_level") or "INFO"),
     )
 
 

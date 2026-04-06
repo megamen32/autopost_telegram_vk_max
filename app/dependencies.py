@@ -64,6 +64,7 @@ class Container:
             transform_service=transform_service,
             delivery_service=delivery_service,
             lineage_service=lineage_service,
+            adapter_registry=self.adapter_registry,
         )
 
     def create_ingress_service(self, session: AsyncSession) -> IngressService:

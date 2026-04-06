@@ -4,8 +4,7 @@ from app.db.models import RouteORM
 from app.domain.policies import ContentPolicy, Route
 from app.repositories.base import SQLAlchemyRepo
 from app.repositories.sql.converters import orm_to_route
-
-
+from app.utils.chat_refs import canonicalize_telegram_chat_ref
 
 
 def _normalize_content_policy(value) -> ContentPolicy:
@@ -84,9 +83,17 @@ class RoutesRepo(SQLAlchemyRepo):
                 .where(
                     RouteORM.enabled.is_(True),
                     RouteORM.source_adapter_id == source_adapter_id,
-                    RouteORM.source_chat_id == source_chat_id,
                 )
                 .order_by(RouteORM.id)
             )
         ).scalars().all()
-        return [orm_to_route(row) for row in rows]
+        matched = []
+        for row in rows:
+            if row.source_platform == "telegram":
+                if canonicalize_telegram_chat_ref(row.source_chat_id) != canonicalize_telegram_chat_ref(source_chat_id):
+                    continue
+            else:
+                if str(row.source_chat_id) != str(source_chat_id):
+                    continue
+            matched.append(row)
+        return [orm_to_route(row) for row in matched]

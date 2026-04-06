@@ -30,8 +30,9 @@ class TelegramAdapter(BaseAdapter):
         sequential_updates: bool = False,
         allowed_source_chat_ids: list[str] | None = None,
         check_all_chats: bool = False,
+        log_level: str = "INFO",
     ) -> None:
-        super().__init__(instance_id=instance_id)
+        super().__init__(instance_id=instance_id, log_level=log_level)
         self.api_id = api_id
         self.api_hash = api_hash
         self.string_session = string_session
