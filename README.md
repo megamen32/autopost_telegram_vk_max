@@ -1,312 +1,231 @@
-# 🚀 AutoPost Sync — кросспостинг между Telegram, VK и MAX
+# AutoPost Sync Beta
 
-**AutoPost Sync** — это self-hosted сервис для автоматического кросспостинга между платформами, типа [crosslybot](https://crosslybot.ru/):
+> В этой версии настройки адаптеров стали плагинными.
+> UI больше не хардкодит Telegram/VK/MAX-поля: формы рендерятся по схеме адаптера.
+> Можно создавать сколько угодно инстансов одного типа: например `telegram-main`, `telegram-backup`, `vk-news`, `max-bot`.
 
-* Telegram (через Telethon)
-* VK (через vkbottle)
-* MAX (через официальный API)
+## Что изменилось
 
-Поддерживает:
+- вместо одной сущности `platform settings` теперь используются **adapter instances**;
+- каждый адаптер сам объявляет свои поля настроек (`simple` и `advanced`);
+- web UI рендерит форму автоматически по этим полям;
+- маршруты создаются **между инстансами адаптеров**, а не между жёстко зашитыми платформами;
+- webhook endpoint теперь имеет вид `/webhooks/{adapter_instance_id}`;
+- старые `platform_settings`-маршруты больше не являются основным способом настройки.
 
-* матрицу синхронизации (любая платформа → любая)
-* фильтрацию контента (текст, фото, видео, аудио, репосты)
-* очередь доставки с retry и backoff
-* обработку больших медиа
-* Web GUI для управления
-* хранение настроек в БД (единый источник истины)
+## Ограничение текущей версии
 
----
-
-# 🔥 Основные возможности
-
-### 📡 Кросспостинг
-
-* Telegram → VK / MAX
-* VK → Telegram / MAX
-* MAX → Telegram / VK
-
-### 🧠 Гибкая логика
-
-* матрица синхронизации
-* правила по типу контента
-* режимы обработки репостов
-
-### ⚙️ Надёжность
-
-* очередь задач на PostgreSQL
-* retry policy (rate limit, timeout, media not ready)
-* heartbeat для долгих upload-задач
-* dead-letter очередь
-
-### 🌐 Web интерфейс
-
-* настройка платформ
-* управление маршрутами
-* просмотр очереди
-* статусы постов
-
-### 🔐 Безопасность
-
-* все токены шифруются в БД
-* ключ хранится в `.env`
+Это **breaking change**. Для существующей базы лучше поднять новую БД или добавить отдельную миграцию под новую модель. Автоматическую миграцию старой таблицы `platform_settings` в `adapter_instances` я в эту версию не включал.
 
 ---
 
-# 📦 Установка
+# autopost_sync beta
 
-## 1. Клонировать проект
+Beta-версия сервиса синхронизации постов между платформами через единый внутренний формат `UnifiedPost`.
 
-```bash
-git clone https://github.com/megamen32/autopost_telegram_vk_max.git
-cd autopost_telegram_vk_max
-```
+## Что появилось по сравнению с alpha
 
----
+- PostgreSQL-ready хранилище через `SQLAlchemy Async`
+- env-конфигурация через `pydantic-settings`
+- таблицы `sync_rules`, `routes`, `processed_events`, `message_links`
+- Alembic-конфигурация и первая миграция
+- `docker-compose.yml` для локального PostgreSQL
+- API теперь работает поверх постоянного хранилища, а не in-memory
 
-## 2. Установить зависимости
+## Что есть в этой версии
 
-```bash
-pip install -e .
-```
+- FastAPI webhook endpoint: `POST /webhooks/{platform}`
+- единый доменный формат сообщений
+- матрица синхронизации через `SyncRule`
+- маршруты между конкретными каналами через `Route`
+- фильтры по типам контента: текст, изображения, видео, аудио, документы, репосты
+- защита от дублей
+- защита от циклов через trace/path
+- CRUD API для правил и маршрутов
+- реальный `TelegramAdapter` на Telethon + заглушки `vk`, `max`
 
----
+## Чего пока нет
 
-## 3. Настроить `.env`
+- реальные интеграции с VK/MAX API
+- очередь задач и retry
+- синхронизация edit/delete
+- полноценная загрузка медиа в целевые платформы
+- аутентификация вебхуков
+- UI
 
-Создать файл:
+## Быстрый запуск через PostgreSQL
 
 ```bash
 cp .env.example .env
-```
-
-Минимально:
-
-```env
-DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/autopost
-SECRETS_ENCRYPTION_KEY=your-super-secret-key
-APP_BASE_URL=http://localhost:8000
-```
-
----
-
-## 4. Запустить PostgreSQL
-
-Через docker:
-
-```bash
 docker compose up -d db
-```
-
----
-
-## 5. Применить миграции
-
-```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
 alembic upgrade head
-```
-
----
-
-## 6. Запустить приложение
-
-```bash
 uvicorn app.main:app --reload
 ```
 
----
+## Быстрый запуск без Alembic
 
-## 7. Открыть Web GUI
-
-👉 [http://localhost:8000](http://localhost:8000)
-
----
-
-# ⚙️ Настройка платформ
-
-Теперь **ВСЕ настройки делаются через Web GUI**, а не через `.env`.
-
-## Telegram
-
-Нужно:
-
-* `api_id`
-* `api_hash`
-* либо `string_session`
-* либо `bot_token`
-
-## VK
-
-Нужно:
-
-* `group_id`
-* `token`
-* `confirmation_token`
-* `secret`
-
-## MAX
-
-Нужно:
-
-* `token`
-* `webhook_url`
-* `secret`
-
----
-
-# 🔁 Как работает синхронизация
-
-## 1. Приходит событие
-
-* Telegram (Telethon)
-* VK (Callback API)
-* MAX (Webhook)
-
-## 2. Преобразуется в UnifiedPost
-
-## 3. Routing Engine:
-
-* смотрит матрицу
-* находит маршруты
-
-## 4. Применяются правила:
-
-* фильтрация контента
-* обработка репостов
-
-## 5. Пост попадает в очередь
-
-## 6. Worker:
-
-* берёт задачу (`SKIP LOCKED`)
-* отправляет
-* делает retry при ошибке
-
----
-
-# 🧩 Структура проекта
-
-```text
-app/
-├── adapters/        # Telegram / VK / MAX
-├── services/        # бизнес-логика
-├── repositories/    # работа с БД
-├── api/             # REST API
-├── workers/         # очередь и обработка
-├── domain/          # модели
-├── webui/           # frontend
-```
-
----
-
-# 🗄️ База данных
-
-Основные таблицы:
-
-* `platform_settings` — настройки платформ
-* `routes` — маршруты каналов
-* `sync_rules` — матрица синхронизации
-* `delivery_jobs` — очередь задач
-* `message_links` — связи сообщений
-* `processed_events` — дедупликация
-
----
-
-# 🧠 Очередь и retry
-
-Используется PostgreSQL:
-
-* `FOR UPDATE SKIP LOCKED`
-* lease-модель
-* heartbeat
-* exponential backoff
-
-Ошибки:
-
-* `429 / rate limit`
-* `attachment.not.ready`
-* network timeout
-
----
-
-# 🖥️ Web GUI
-
-Разделы:
-
-* **Overview** — статистика
-* **Matrix** — правила платформ
-* **Routes** — маршруты
-* **Jobs** — очередь
-* **Platform Settings** — настройки API
-
----
-
-# 🔐 Безопасность
-
-* токены шифруются через `Fernet`
-* ключ хранится в `.env`
-* секреты не возвращаются в UI
-
----
-
-# ⚠️ Важно
-
-* `.env` больше НЕ используется для платформ
-* все настройки — только в БД
-* после изменения настроек нужен restart
-
----
-
-# 🧪 Тесты
+Если `AUTO_CREATE_TABLES=true`, приложение само создаст таблицы при старте:
 
 ```bash
-pytest
+cp .env.example .env
+docker compose up -d db
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+uvicorn app.main:app --reload
 ```
 
----
+## Примеры
 
-# 🧭 Roadmap
+### Создать правило TG -> VK
 
-* runtime reload без рестарта
-* distributed workers
-* media cache
-* аналитика постов
-* multi-user UI
+```bash
+curl -X POST http://127.0.0.1:8000/rules \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "source_platform": "telegram",
+    "target_platform": "vk",
+    "enabled": true,
+    "content_policy": {
+      "allow_text": true,
+      "allow_images": true,
+      "allow_video": true,
+      "allow_audio": false,
+      "allow_documents": false,
+      "allow_reposts": false,
+      "max_images": null,
+      "max_video_size_mb": null,
+      "max_audio_size_mb": null,
+      "drop_unsupported_media": true
+    },
+    "repost_mode": "ignore",
+    "copy_text_template": "{text}"
+  }'
+```
 
----
+### Создать маршрут TG channel -> VK group
 
-# 💡 Использование
+```bash
+curl -X POST http://127.0.0.1:8000/routes \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "id": "route-1",
+    "source_platform": "telegram",
+    "source_chat_id": "tg-channel-1",
+    "target_platform": "vk",
+    "target_chat_id": "vk-group-1",
+    "enabled": true
+  }'
+```
 
-Примеры:
+### Послать тестовый webhook
 
-### Telegram → VK
+```bash
+curl -X POST http://127.0.0.1:8000/webhooks/telegram \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "chat_id": "tg-channel-1",
+    "message_id": "100",
+    "text": "Привет из Telegram",
+    "media": [
+      {"type": "image", "url": "https://example.com/image.jpg"}
+    ],
+    "is_repost": false
+  }'
+```
 
-* добавляешь маршрут
-* включаешь правило
-* пост автоматически дублируется
+### Проверить созданные связи сообщений
 
-### VK → Telegram
+```bash
+curl http://127.0.0.1:8000/debug/message-links
+```
 
-* настраиваешь callback
-* добавляешь маршрут
-* всё работает
+## Следующие шаги для gamma
 
----
+1. реальные publisher/client слои для Telegram, VK и MAX;
+2. retry-очередь и rate limiting;
+3. синхронизация edit/delete;
+4. хранение токенов/аккаунтов платформ;
+5. UI для матрицы и маршрутов.
 
-# 📌 Для кого это
 
-* владельцы Telegram-каналов
-* SMM
-* медиа
-* разработчики
-* автоматизация контента
+## Telegram через Telethon
 
----
+В этой версии Telegram переведён с заглушки на реальный адаптер Telethon.
+Поддерживается:
 
-# 🏁 Итог
+- авторизация через `TELEGRAM_STRING_SESSION`
+- авторизация через `TELEGRAM_BOT_TOKEN`
+- отправка текста
+- отправка фото
+- отправка видео
+- приём новых сообщений через Telethon updates
 
-Это не “бот”, а **инфраструктура кросспостинга уровня сервиса**:
+### Переменные окружения
 
-* расширяемая
-* надёжная
-* self-hosted
-* без SaaS ограничений
+```env
+TELEGRAM_API_ID=123456
+TELEGRAM_API_HASH=your_api_hash
+TELEGRAM_STRING_SESSION=
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_SESSION_NAME=autopost_sync
+TELEGRAM_RECEIVE_UPDATES=true
+TELEGRAM_SEQUENTIAL_UPDATES=false
+TELEGRAM_ALLOWED_SOURCE_CHAT_IDS=[]
+```
+
+Нужно задать `TELEGRAM_API_ID` и `TELEGRAM_API_HASH`, а затем либо `TELEGRAM_STRING_SESSION`, либо `TELEGRAM_BOT_TOKEN`.
+
+### Замечания
+
+- если Telegram не настроен, адаптер мягко отключается и приложение всё равно стартует;
+- входящие сообщения принимаются не через HTTP webhook, а через Telethon updates;
+- ручной `POST /webhooks/telegram` сохранён для тестов и отладки.
+
+
+## VK callback configuration
+
+Set `VK_TOKEN`, `VK_GROUP_ID`, and optionally `VK_CONFIRMATION_TOKEN` / `VK_SECRET`.
+VK webhook endpoint: `/webhooks/vk`.
+Supported incoming callback types in this build: `message_new`, `wall_post_new`, and `confirmation`.
+Publishing currently supports text and photo uploads to community wall; video/audio/document media fall back to links where possible.
+
+
+## MAX adapter
+
+The project now includes a real MAX adapter based on the official MAX Bot API. It can receive `message_created` webhook updates, validate the `X-Max-Bot-Api-Secret` header, send text messages, and upload image/video/audio/file attachments through `/uploads` followed by `/messages`. MAX recommends webhook delivery for production, requires HTTPS on port 443, and supports up to 30 requests per second. If sending immediately after upload fails with `attachment.not.ready`, the adapter includes a short delay and can fall back to text with media links.
+
+
+## Delivery queue and retry
+
+This version includes a database-backed `delivery_jobs` queue and a background worker. Sync ingestion enqueues outgoing deliveries instead of sending media inline. The worker retries transient media failures such as MAX `attachment.not.ready`, rate limits, timeouts, and temporary upload processing with exponential backoff.
+
+
+## Production queue
+
+- PostgreSQL row locking via `FOR UPDATE SKIP LOCKED` when the dialect is PostgreSQL
+- lease-based job acquisition with `lock_token` and `lock_expires_at`
+- dead-letter state: `dead_letter`
+- platform-specific retry classifiers for Telegram, VK, and MAX
+
+
+## Queue heartbeat
+
+For long media uploads, the worker now periodically extends the PostgreSQL lease while the job is still running. Configure it with `DELIVERY_JOB_HEARTBEAT_INTERVAL_SECONDS`.
+
+
+## Single source of truth
+
+Telegram, VK and MAX platform settings are stored only in the database and edited through the Web GUI.
+Environment variables are reserved for infrastructure settings such as `DATABASE_URL`, `SECRETS_ENCRYPTION_KEY` and worker tuning.
+
+
+## MAX transport
+
+Для MAX базовым транспортным слоем используется официальный/проверенный пакет `maxapi` (`max-messenger/max-botapi-python`) с fallback на прямой HTTP Bot API, если нужный метод в SDK недоступен.
+
+
+- `SQL_DEBUG` — включает подробный SQL-лог SQLAlchemy. По умолчанию лучше держать `false`, иначе консоль будет забита запросами.
