@@ -36,6 +36,8 @@ class Route:
     target_adapter_id: str
     target_platform: Platform
     target_chat_id: str
+    source_chat_canonical: str | None = None
+    target_chat_canonical: str | None = None
     enabled: bool = True
 
     has_policy: bool = False

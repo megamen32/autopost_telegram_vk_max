@@ -49,9 +49,11 @@ class RouteORM(Base):
     source_adapter_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     source_platform: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     source_chat_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    source_chat_canonical: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     target_adapter_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     target_platform: Mapped[str] = mapped_column(String(32), nullable=False)
     target_chat_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    target_chat_canonical: Mapped[str | None] = mapped_column(String(255), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     has_policy: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

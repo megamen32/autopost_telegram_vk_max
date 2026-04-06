@@ -40,10 +40,10 @@ async def list_routes(session: AsyncSession = Depends(get_session)):
 
 async def _normalize_telegram_route_refs(data: dict, container) -> dict:
     pairs = [
-        ("source_platform", "source_adapter_id", "source_chat_id"),
-        ("target_platform", "target_adapter_id", "target_chat_id"),
+        ("source_platform", "source_adapter_id", "source_chat_id", "source_chat_canonical"),
+        ("target_platform", "target_adapter_id", "target_chat_id", "target_chat_canonical"),
     ]
-    for platform_key, adapter_key, chat_key in pairs:
+    for platform_key, adapter_key, chat_key, canonical_key in pairs:
         if str(data.get(platform_key)) != "telegram":
             continue
         adapter_id = data.get(adapter_key)
@@ -53,15 +53,19 @@ async def _normalize_telegram_route_refs(data: dict, container) -> dict:
         try:
             adapter = container.adapter_registry.get_by_instance(adapter_id)
         except Exception:
-            continue
-        resolver = getattr(adapter, "resolve_chat_reference", None)
-        if resolver is None:
-            continue
-        try:
-            data[chat_key] = await resolver(chat_value)
-        except Exception:
-            # keep original value if resolution failed
-            pass
+            adapter = None
+        resolved = None
+        if adapter is not None:
+            resolver = getattr(adapter, "resolve_chat_reference", None)
+            if resolver is not None:
+                try:
+                    resolved = await resolver(chat_value)
+                except Exception:
+                    resolved = None
+        if resolved is None:
+            from app.utils.chat_refs import canonicalize_telegram_chat_ref
+            resolved = canonicalize_telegram_chat_ref(chat_value)
+        data[canonical_key] = str(resolved) if resolved not in (None, "") else None
     return data
 
 

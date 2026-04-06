@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+import re
 
 from app.adapters.definitions import AdapterDefinitionRegistry
 from app.dependencies import get_container, get_session
@@ -21,6 +22,24 @@ async def list_adapter_instances(session: AsyncSession = Depends(get_session), c
     return await repo.list_all(include_secrets=False)
 
 
+
+def _slugify(value: str) -> str:
+    value = value.strip().lower()
+    value = re.sub(r"[^a-z0-9а-яё]+", "-", value, flags=re.IGNORECASE)
+    value = value.strip("-")
+    return value or "instance"
+
+
+async def _generate_instance_id(repo: AdapterInstancesRepo, adapter_key: str, display_name: str) -> str:
+    base = f"{adapter_key}-{_slugify(display_name)}"
+    candidate = base
+    idx = 2
+    while await repo.get(candidate) is not None:
+        candidate = f"{base}-{idx}"
+        idx += 1
+    return candidate
+
+
 @router.post('/api/adapter-instances')
 async def create_or_update_adapter_instance(payload: AdapterInstanceUpsertSchema, session: AsyncSession = Depends(get_session), container=Depends(get_container)):
     defs = container.definition_registry
@@ -29,8 +48,9 @@ async def create_or_update_adapter_instance(payload: AdapterInstanceUpsertSchema
     except KeyError:
         raise HTTPException(status_code=400, detail='Unknown adapter_key')
     repo = AdapterInstancesRepo(session, SecretBox(container.secrets_encryption_key))
+    instance_id = payload.id or await _generate_instance_id(repo, payload.adapter_key, payload.display_name)
     return await repo.upsert(
-        instance_id=payload.id,
+        instance_id=instance_id,
         adapter_key=payload.adapter_key,
         platform=definition.platform,
         display_name=payload.display_name,

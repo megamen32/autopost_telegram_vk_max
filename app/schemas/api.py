@@ -30,9 +30,11 @@ class RouteSchema(BaseModel):
     source_adapter_id: str = Field(min_length=1)
     source_platform: Platform
     source_chat_id: str
+    source_chat_canonical: str | None = None
     target_adapter_id: str = Field(min_length=1)
     target_platform: Platform
     target_chat_id: str
+    target_chat_canonical: str | None = None
     enabled: bool = True
 
     has_policy: bool = False
@@ -43,7 +45,7 @@ class RouteSchema(BaseModel):
 
 
 class AdapterInstanceUpsertSchema(BaseModel):
-    id: str = Field(min_length=1)
+    id: str | None = None
     adapter_key: str = Field(min_length=1)
     display_name: str = Field(min_length=1)
     enabled: bool = True

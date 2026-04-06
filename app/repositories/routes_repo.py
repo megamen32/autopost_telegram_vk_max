@@ -38,9 +38,11 @@ class RoutesRepo(SQLAlchemyRepo):
         row.source_adapter_id = route.source_adapter_id
         row.source_platform = route.source_platform.value
         row.source_chat_id = route.source_chat_id
+        row.source_chat_canonical = route.source_chat_canonical
         row.target_adapter_id = route.target_adapter_id
         row.target_platform = route.target_platform.value
         row.target_chat_id = route.target_chat_id
+        row.target_chat_canonical = route.target_chat_canonical
         row.enabled = route.enabled
         row.has_policy = route.has_policy
         row.policy_enabled = route.policy_enabled
@@ -90,7 +92,9 @@ class RoutesRepo(SQLAlchemyRepo):
         matched = []
         for row in rows:
             if row.source_platform == "telegram":
-                if canonicalize_telegram_chat_ref(row.source_chat_id) != canonicalize_telegram_chat_ref(source_chat_id):
+                route_canonical = row.source_chat_canonical or canonicalize_telegram_chat_ref(row.source_chat_id)
+                incoming_canonical = canonicalize_telegram_chat_ref(source_chat_id)
+                if route_canonical != incoming_canonical:
                     continue
             else:
                 if str(row.source_chat_id) != str(source_chat_id):
