@@ -26,7 +26,7 @@ class SyncRuleSchema(BaseModel):
 
 
 class RouteSchema(BaseModel):
-    id: str = Field(min_length=1)
+    id: str | None = None
     source_adapter_id: str = Field(min_length=1)
     source_platform: Platform
     source_chat_id: str
