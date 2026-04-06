@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Awaitable, Callable
 
@@ -145,18 +147,25 @@ class TelegramAdapter(BaseAdapter):
     async def resolve_chat_reference(self, value: str | int) -> str:
         normalized = self._normalize_target_entity(value)
         if isinstance(normalized, int):
+            self._log_info("telegram resolve numeric chat reference", raw=value, canonical=str(normalized))
             return str(normalized)
 
         ref = self._extract_public_reference(str(normalized))
         if ref is None:
+            self._log_warning("telegram resolve fallback: unsupported reference format", raw=value)
             return str(normalized)
 
         client = await self._get_client(required=True)
-        entity = await client.get_entity(ref)
-        entity_id = self._extract_chat_id(entity) or self._extract_peer_id(getattr(entity, "peer_id", None))
-        if entity_id is None:
-            raise RuntimeError(f"Could not resolve Telegram reference: {value}")
-        return str(entity_id)
+        try:
+            entity = await client.get_entity(ref)
+            entity_id = self._extract_chat_id(entity) or self._extract_peer_id(getattr(entity, "peer_id", None))
+            if entity_id is None:
+                raise RuntimeError(f"Could not resolve Telegram reference: {value}")
+            self._log_info("telegram resolve success", raw=value, canonical=str(entity_id))
+            return str(entity_id)
+        except Exception as exc:
+            self._log_warning("telegram resolve failed", raw=value, reason=str(exc))
+            raise
 
     def _extract_public_reference(self, value: str) -> str | None:
         stripped = value.strip()
@@ -263,17 +272,45 @@ class TelegramAdapter(BaseAdapter):
 
         item_type = self._detect_media_type(message, mime_type)
         file_reference = await self._build_message_permalink(message)
+        downloaded_path = await self._download_media_to_tempfile(message, filename=filename, mime_type=mime_type)
         media.append(
             MediaItem(
                 type=item_type,
                 file_id=file_reference,
+                url=downloaded_path,
                 mime_type=mime_type,
-                filename=filename,
+                filename=filename or (os.path.basename(downloaded_path) if downloaded_path else None),
                 size_bytes=size_bytes,
                 meta={"telethon_message_id": message.id},
             )
         )
         return media
+
+
+    async def _download_media_to_tempfile(self, message, *, filename: str | None, mime_type: str | None) -> str | None:
+        client = await self._get_client(required=True)
+        suffix = ""
+        if filename and "." in filename:
+            suffix = Path(filename).suffix
+        elif mime_type == "image/jpeg":
+            suffix = ".jpg"
+        elif mime_type == "image/png":
+            suffix = ".png"
+        elif mime_type and mime_type.startswith("video/"):
+            suffix = ".mp4"
+        elif mime_type and mime_type.startswith("audio/"):
+            suffix = ".mp3"
+
+        try:
+            fd, path = tempfile.mkstemp(prefix="autopost_tg_", suffix=suffix)
+            os.close(fd)
+            downloaded = await client.download_media(message, file=path)
+            final_path = str(downloaded or path)
+            self._log_info("telegram media downloaded", message_id=getattr(message, "id", None), path=final_path, mime_type=mime_type)
+            return final_path
+        except Exception as exc:
+            self._log_warning("telegram media download failed", message_id=getattr(message, "id", None), reason=str(exc))
+            return None
 
     def _detect_media_type(self, message, mime_type: str | None) -> ContentType:
         if getattr(message, "photo", None):

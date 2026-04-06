@@ -1,3 +1,4 @@
+from app.utils.logging import get_logger
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -5,6 +6,8 @@ from app.domain.policies import ContentPolicy, Route
 from app.repositories.routes_repo import RoutesRepo
 from app.schemas.api import RouteSchema
 from app.dependencies import get_session, get_container
+
+logger = get_logger("autopost_sync.routes")
 
 router = APIRouter(prefix="/routes", tags=["routes"])
 
@@ -59,12 +62,21 @@ async def _normalize_telegram_route_refs(data: dict, container) -> dict:
             resolver = getattr(adapter, "resolve_chat_reference", None)
             if resolver is not None:
                 try:
+                    logger.info("telegram resolve start | %s", {"adapter_id": adapter_id, "raw": chat_value})
                     resolved = await resolver(chat_value)
-                except Exception:
+                    logger.info("telegram resolve success | %s", {"adapter_id": adapter_id, "raw": chat_value, "canonical": resolved})
+                except Exception as exc:
+                    logger.warning("telegram resolve failed | %s", {"adapter_id": adapter_id, "raw": chat_value, "reason": str(exc)})
+                    if adapter is not None:
+                        try:
+                            adapter._log_warning("telegram resolve failed; using fallback canonicalization", raw=chat_value, reason=str(exc))
+                        except Exception:
+                            pass
                     resolved = None
         if resolved is None:
             from app.utils.chat_refs import canonicalize_telegram_chat_ref
             resolved = canonicalize_telegram_chat_ref(chat_value)
+            logger.info("telegram resolve fallback canonicalization | %s", {"raw": chat_value, "canonical": resolved})
         data[canonical_key] = str(resolved) if resolved not in (None, "") else None
     return data
 
@@ -77,6 +89,7 @@ async def create_or_update_route(payload: RouteSchema, session: AsyncSession = D
         data["id"] = _build_route_id(data)
     data["content_policy"] = ContentPolicy(**payload.content_policy.model_dump())
     route = Route(**data)
+    logger.info("route upsert | %s", {"route_id": data.get("id"), "source_adapter_id": data.get("source_adapter_id"), "source_chat_id": data.get("source_chat_id"), "source_chat_canonical": data.get("source_chat_canonical"), "target_adapter_id": data.get("target_adapter_id"), "target_chat_id": data.get("target_chat_id"), "target_chat_canonical": data.get("target_chat_canonical")})
     return await RoutesRepo(session).upsert(route)
 
 

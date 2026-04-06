@@ -91,7 +91,8 @@ class VkAdapter(BaseAdapter):
         if self.secret and payload.get("secret") != self.secret:
             raise HTTPException(status_code=403, detail="Invalid VK callback secret")
         if event_type in {"message_new", "wall_post_new"}:
-            return None
+            self._log_warning("vk attachment unsupported or unresolved", media_type=item.type.value, file_id=item.file_id, url=item.url)
+        return None
         return "ok"
 
     async def parse_incoming_event(self, payload: dict) -> UnifiedPost | None:
@@ -135,9 +136,11 @@ class VkAdapter(BaseAdapter):
             attachment = await self._prepare_attachment(client=client, owner_id=owner_id, item=item)
             if attachment is None:
                 fallback_link = item.url or item.file_id
-                if fallback_link and fallback_link.startswith(("http://", "https://")):
+                self._log_warning("vk attachment fallback to link/text", media_type=item.type.value, fallback_link=fallback_link)
+                if fallback_link and str(fallback_link).startswith(("http://", "https://")):
                     append_links_to_text.append(fallback_link)
                 continue
+            self._log_info("vk attachment prepared", media_type=item.type.value, attachment=attachment)
             attachments.append(attachment)
 
         message_text = post.text or ""
@@ -315,6 +318,7 @@ class VkAdapter(BaseAdapter):
             return vk_attachment
 
         if item.type == ContentType.IMAGE and item.url:
+            self._log_info("vk image upload start", source=item.url, filename=item.filename)
             upload_server = await client.call_method(
                 "photos.getWallUploadServer",
                 {"group_id": abs(owner_id)},
@@ -337,7 +341,9 @@ class VkAdapter(BaseAdapter):
                 },
             )
             photo = saved[0]
-            return f"photo{photo['owner_id']}_{photo['id']}"
+            attachment = f"photo{photo['owner_id']}_{photo['id']}"
+            self._log_info("vk image upload success", attachment=attachment)
+            return attachment
 
         if item.type == ContentType.DOCUMENT and item.url:
             upload_server = await client.call_method(

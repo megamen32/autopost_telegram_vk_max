@@ -5,6 +5,7 @@ import logging
 from typing import Awaitable, Callable
 
 from app.services.adapter_runtime import AdapterRuntimeMonitor
+from app.utils.logging import format_extra
 
 from app.domain.enums import Platform
 from app.domain.models import UnifiedPost
@@ -30,17 +31,20 @@ class BaseAdapter(ABC):
         return desired >= current
 
     def _log_info(self, message: str, **extra) -> None:
-        self.logger.info(message)
+        self.logger.info(f"{message}{format_extra(extra)}")
         if self.runtime_monitor and self._should_emit("INFO"):
             self.runtime_monitor.log(self.instance_id, self.platform.value, "info", message, **extra)
 
     def _log_warning(self, message: str, **extra) -> None:
-        self.logger.warning(message)
+        self.logger.warning(f"{message}{format_extra(extra)}")
         if self.runtime_monitor and self._should_emit("WARNING"):
             self.runtime_monitor.log(self.instance_id, self.platform.value, "warning", message, **extra)
 
     def _log_error(self, message: str, *, code: str | None = None, **extra) -> None:
-        self.logger.error(message)
+        merged = dict(extra)
+        if code is not None:
+            merged["code"] = code
+        self.logger.error(f"{message}{format_extra(merged)}")
         if self.runtime_monitor:
             self.runtime_monitor.record_error(self.instance_id, self.platform.value, message, code=code, **extra)
 

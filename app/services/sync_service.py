@@ -1,6 +1,10 @@
+from app.utils.logging import get_logger
 from copy import deepcopy
 
 from app.utils.hashing import build_post_hash
+
+
+logger = get_logger("autopost_sync.pipeline")
 
 
 class SyncService:
@@ -23,6 +27,7 @@ class SyncService:
         self.adapter_registry = adapter_registry
 
     async def handle_post(self, post) -> None:
+        logger.info("incoming post | %s", {"source_adapter_id": getattr(post, "source_adapter_id", None), "source_chat_id": post.source_chat_id, "source_message_id": post.source_message_id})
         source_adapter = None
         if self.adapter_registry is not None:
             try:
@@ -37,9 +42,13 @@ class SyncService:
         ):
             if source_adapter is not None:
                 source_adapter._log_info("diagnostics: duplicate event skipped", source_chat_id=post.source_chat_id, source_message_id=post.source_message_id)
+            logger.info("duplicate event skipped | %s", {"source_chat_id": post.source_chat_id, "source_message_id": post.source_message_id})
             return
 
         destinations = await self.routing_service.resolve_destinations(post)
+        logger.info("route lookup completed | %s", {"source_chat_id": post.source_chat_id, "matched_routes": [route.id for route, _ in destinations], "matched_count": len(destinations)})
+        if len(destinations) > 1:
+            logger.warning("duplicate routes matched | %s", {"source_chat_id": post.source_chat_id, "route_ids": [route.id for route, _ in destinations]})
         if source_adapter is not None:
             source_adapter._log_info(
                 "diagnostics: route lookup completed",
@@ -47,6 +56,8 @@ class SyncService:
                 matched_routes=[route.id for route, _ in destinations],
                 matched_count=len(destinations),
             )
+            if len(destinations) > 1:
+                source_adapter._log_warning("diagnostics: duplicate routes matched", source_chat_id=post.source_chat_id, route_ids=[route.id for route, _ in destinations])
         if not destinations and source_adapter is not None:
             source_adapter._log_warning(
                 "diagnostics: no route matched incoming post",
@@ -74,6 +85,7 @@ class SyncService:
             )
             post_copy = self.lineage_service.extend_trace(post_copy, route.target_adapter_id)
             await self.delivery_service.deliver(route, post_copy)
+            logger.info("delivery job enqueued | %s", {"route_id": route.id, "target_adapter_id": route.target_adapter_id, "target_chat_id": route.target_chat_id})
             if source_adapter is not None:
                 source_adapter._log_info(
                     "diagnostics: delivery job enqueued",

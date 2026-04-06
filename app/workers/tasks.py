@@ -14,7 +14,9 @@ from app.utils.serialization import route_from_dict, unified_post_from_dict
 if TYPE_CHECKING:
     from app.dependencies import Container
 
-logger = logging.getLogger(__name__)
+from app.utils.logging import get_logger
+
+logger = get_logger("autopost_sync.worker")
 
 
 async def process_due_delivery_jobs(container: "Container") -> int:
@@ -48,6 +50,7 @@ async def process_due_delivery_jobs(container: "Container") -> int:
                 route = route_from_dict(payload["route"])
                 post = unified_post_from_dict(payload["post"])
                 adapter = container.adapter_registry.get_by_instance(route.target_adapter_id)
+                logger.info("delivery job started | %s", {"job_id": job["id"], "route_id": route.id, "target_adapter_id": route.target_adapter_id, "target_chat_id": route.target_chat_id})
                 target_message_id = await adapter.publish_post(route.target_chat_id, post)
                 await message_links_repo.create(
                     origin_platform=post.source_platform.value,
@@ -62,10 +65,11 @@ async def process_due_delivery_jobs(container: "Container") -> int:
                 await heartbeat.stop()
                 await jobs_repo.mark_succeeded(job["id"], lock_token=job["lock_token"])
                 await session.commit()
+                logger.info("delivery job succeeded | %s", {"job_id": job["id"], "target_message_id": target_message_id})
                 processed += 1
             except Exception as exc:
                 await heartbeat.stop()
-                logger.exception("Delivery job failed", extra={"job_id": job["id"]})
+                logger.exception("delivery job failed | %s", {"job_id": job["id"], "target_platform": job["target_platform"]})
                 media_types = [item.type for item in unified_post_from_dict(job["payload"]["post"]).media]
                 decision = retry_policy.decide(
                     platform=Platform(job["target_platform"]),
@@ -75,6 +79,7 @@ async def process_due_delivery_jobs(container: "Container") -> int:
                     max_attempts=job["max_attempts"],
                 )
                 if decision.should_retry:
+                    logger.warning("delivery job scheduled for retry | %s", {"job_id": job["id"], "error_code": decision.error_code, "delay_seconds": decision.delay_seconds})
                     await jobs_repo.mark_retry(
                         job["id"],
                         lock_token=job["lock_token"],
@@ -84,6 +89,7 @@ async def process_due_delivery_jobs(container: "Container") -> int:
                         error_code=decision.error_code,
                     )
                 else:
+                    logger.error("delivery job dead-lettered | %s", {"job_id": job["id"], "error_code": decision.error_code})
                     await jobs_repo.mark_dead_letter(
                         job["id"],
                         lock_token=job["lock_token"],

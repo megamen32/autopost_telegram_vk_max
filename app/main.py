@@ -7,8 +7,10 @@ from app.api.routes import router as routes_router
 from app.api.webhooks import router as webhooks_router
 from app.config import get_settings
 from app.dependencies import lifespan
+from app.utils.logging import setup_logging
 
 settings = get_settings()
+setup_logging(settings)
 app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
 
 app.include_router(health_router)

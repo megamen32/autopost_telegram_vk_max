@@ -71,5 +71,6 @@ async def dashboard_runtime_adapters(container=Depends(get_container)):
 async def dashboard_diagnostics(container=Depends(get_container), session: AsyncSession = Depends(get_session)):
     return {
         "adapter_runtime_statuses": container.adapter_runtime_monitor.snapshot(),
+        "global_logs": container.adapter_runtime_monitor.global_logs(),
         "routes": await RoutesRepo(session).list_all(),
     }

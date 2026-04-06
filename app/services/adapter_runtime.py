@@ -34,6 +34,7 @@ class AdapterRuntimeState:
 class AdapterRuntimeMonitor:
     def __init__(self) -> None:
         self._states: dict[str, AdapterRuntimeState] = {}
+        self._global_logs = deque(maxlen=400)
         self._lock = Lock()
 
     def ensure(self, instance_id: str, platform: str) -> AdapterRuntimeState:
@@ -46,7 +47,9 @@ class AdapterRuntimeMonitor:
 
     def log(self, instance_id: str, platform: str, level: str, message: str, **extra: Any) -> None:
         state = self.ensure(instance_id, platform)
-        state.logs.appendleft({"ts": utcnow_iso(), "level": level, "message": message, "extra": extra or None})
+        entry = {"ts": utcnow_iso(), "level": level, "message": message, "extra": extra or None}
+        state.logs.appendleft(entry)
+        self._global_logs.appendleft({**entry, "instance_id": instance_id, "platform": platform})
 
     def set_status(self, instance_id: str, platform: str, *, status: str, connected: bool | None = None) -> None:
         state = self.ensure(instance_id, platform)
@@ -91,7 +94,9 @@ class AdapterRuntimeMonitor:
         state.last_error_code = code
         entry = {"ts": state.last_error_at, "message": message, "code": code, "extra": extra or None}
         state.errors.appendleft(entry)
-        state.logs.appendleft({"ts": state.last_error_at, "level": "error", "message": message, "extra": extra or None})
+        log_entry = {"ts": state.last_error_at, "level": "error", "message": message, "extra": extra or None}
+        state.logs.appendleft(log_entry)
+        self._global_logs.appendleft({**log_entry, "instance_id": instance_id, "platform": platform})
 
     def snapshot(self) -> list[dict[str, Any]]:
         with self._lock:
@@ -116,3 +121,8 @@ class AdapterRuntimeMonitor:
                 }
                 for s in sorted(self._states.values(), key=lambda x: x.instance_id)
             ]
+
+
+    def global_logs(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return list(self._global_logs)
