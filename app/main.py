@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api.adapter_instances import router as adapter_instances_router
 from app.api.vk_auth import router as vk_auth_router
@@ -14,6 +17,9 @@ from app.utils.logging import setup_logging
 settings = get_settings()
 setup_logging(settings)
 app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
+
+WEBUI_DIR = Path(__file__).resolve().parent / "webui"
+app.mount("/static", StaticFiles(directory=WEBUI_DIR), name="webui-static")
 
 app.include_router(health_router)
 app.include_router(dashboard_router)

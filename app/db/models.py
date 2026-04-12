@@ -28,6 +28,16 @@ class SyncRuleORM(Base):
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
+class PlatformSettingORM(Base):
+    __tablename__ = "platform_settings"
+
+    platform: Mapped[str] = mapped_column(String(32), primary_key=True)
+    config_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    secrets_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
 class AdapterInstanceORM(Base):
     __tablename__ = "adapter_instances"
 

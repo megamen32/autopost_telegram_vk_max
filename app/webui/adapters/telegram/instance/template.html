@@ -1,0 +1,28 @@
+<form class="instance-form adapter-telegram__form">
+  <div class="card">
+    <div class="inline" style="justify-content: space-between; align-items: flex-start;">
+      <div>
+        <h3 data-slot="display-name"></h3>
+        <div class="muted mono" data-slot="instance-id"></div>
+      </div>
+      <div class="inline" style="flex-direction: column; gap: 8px;">
+        <button class="btn secondary instance-test-btn" type="button">Test</button>
+        <button class="btn danger instance-delete-btn" type="button">Delete</button>
+      </div>
+    </div>
+
+    <div style="margin-top: 16px;">
+      <h4 style="margin: 0 0 12px;">Basic settings</h4>
+      <div data-slot="fields-basic"></div>
+    </div>
+
+    <details style="margin-top: 16px;">
+      <summary style="cursor: pointer; font-weight: 600; color: #93c5fd;">Advanced settings</summary>
+      <div style="margin-top: 12px;" data-slot="fields-advanced"></div>
+    </details>
+
+    <div data-slot="extra" style="margin-top: 16px;"></div>
+
+    <button class="btn" type="submit" style="margin-top: 16px;">Save</button>
+  </div>
+</form>

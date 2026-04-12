@@ -28,5 +28,5 @@ def test_dashboard_overview_json(tmp_path: Path):
         response = client.get("/api/dashboard/overview")
         assert response.status_code == 200
         data = response.json()
-        assert "platform_status" in data
-        assert set(data["platform_status"].keys()) == {"telegram", "vk", "max"}
+        assert "platform_status" not in data
+        assert "adapter_runtime_statuses" in data
