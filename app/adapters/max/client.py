@@ -286,7 +286,7 @@ class MaxClient:
                 method = getattr(self._sdk(), method_name)
                 return await method(*args, **kwargs)
             except Exception as exc:  # pragma: no cover - depends on optional package
-                logger.info("MAX SDK transport unavailable for %s, fallback to HTTP: %s", method_name, exc)
+                logger.info(f"MAX SDK transport unavailable for {method_name}, fallback to HTTP: {exc}")
         method = getattr(self._http(), method_name)
         return await method(*args, **kwargs)
 

@@ -13,6 +13,7 @@ from app.services.vk_oauth import (
     build_vk_oauth_group_authorize_url,
     compute_expires_at,
     is_token_expired,
+    revoke_access_token,
     refresh_access_token,
 )
 
@@ -21,6 +22,8 @@ def test_vk_auth_button_is_rendered_in_webui():
     html = Path("app/webui/index.html").read_text(encoding="utf-8")
 
     assert 'class="btn vk-auth-btn"' in html
+    assert 'class="btn secondary vk-reissue-btn"' in html
+    assert 'class="btn secondary vk-revoke-btn"' in html
     assert 'class="btn secondary vk-load-groups-btn"' in html
     assert "Legacy: токен сообщества" in html
     assert 'class="btn secondary vk-media-auth-btn"' not in html
@@ -120,6 +123,55 @@ def test_vk_refresh_access_token_posts_expected_payload(monkeypatch):
                 "device_id": "device-123",
                 "scope": "photos wall",
                 "state": "refresh-state",
+            },
+        }
+    ]
+
+
+def test_vk_revoke_access_token_posts_expected_payload(monkeypatch):
+    calls: list[dict] = []
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"ok": 1}
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url, data):
+            calls.append({"url": url, "data": data})
+            return FakeResponse()
+
+    monkeypatch.setattr(
+        "app.services.vk_oauth.httpx",
+        SimpleNamespace(AsyncClient=lambda *args, **kwargs: FakeClient()),
+    )
+
+    response = asyncio.run(
+        revoke_access_token(
+            client_id="123456",
+            access_token="token-123",
+            device_id="device-123",
+            state="revoke-state",
+        )
+    )
+
+    assert response["ok"] == 1
+    assert calls == [
+        {
+            "url": "https://id.vk.ru/oauth2/revoke",
+            "data": {
+                "client_id": "123456",
+                "access_token": "token-123",
+                "device_id": "device-123",
+                "state": "revoke-state",
             },
         }
     ]

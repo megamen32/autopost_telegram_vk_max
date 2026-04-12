@@ -12,11 +12,13 @@ from app.api.routes import router as routes_router
 from app.api.webhooks import router as webhooks_router
 from app.config import get_settings
 from app.dependencies import lifespan
+from app.middleware.request_logging import register_request_logging
 from app.utils.logging import setup_logging
 
 settings = get_settings()
 setup_logging(settings)
 app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
+register_request_logging(app)
 
 WEBUI_DIR = Path(__file__).resolve().parent / "webui"
 app.mount("/static", StaticFiles(directory=WEBUI_DIR), name="webui-static")

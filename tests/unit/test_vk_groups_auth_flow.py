@@ -204,6 +204,84 @@ def test_vk_media_auth_start_uses_vk_id_code_flow(tmp_path):
         sys.modules.pop("app.main", None)
 
 
+def test_vk_revoke_endpoint_clears_user_vk_tokens(monkeypatch, tmp_path):
+    db_path = tmp_path / "vk_revoke.db"
+    os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{db_path}"
+    os.environ["AUTO_CREATE_TABLES"] = "true"
+    os.environ["SECRETS_ENCRYPTION_KEY"] = "test-key-for-vk-revoke"
+    os.environ["DEBUG"] = "false"
+
+    sys.modules.pop("app.main", None)
+    from app.main import app
+
+    revoke_calls: list[dict] = []
+
+    async def fake_revoke_access_token(**kwargs):
+        revoke_calls.append(kwargs)
+        return {"ok": 1}
+
+    monkeypatch.setattr("app.api.vk_auth.revoke_access_token", fake_revoke_access_token)
+
+    try:
+        with TestClient(app) as client:
+            create_resp = client.post(
+                "/api/adapter-instances",
+                json={
+                    "id": "vk-revoke-instance",
+                    "adapter_key": "vk",
+                    "display_name": "VK revoke test",
+                    "enabled": True,
+                    "config": {
+                        "group_id": 12345,
+                        "vk_id_client_id": "client-123",
+                        "vk_oauth_user_id": 777,
+                        "vk_oauth_scope": "vkid.personal_info photos video wall market groups",
+                    },
+                    "secrets": {
+                        "user_access_token_for_media": "vk-user-access-token",
+                        "vk_oauth_access_token": "vk-user-access-token",
+                        "vk_oauth_refresh_token": "vk-refresh-token",
+                        "vk_oauth_device_id": "device-777",
+                        "vk_oauth_token_expires_at": 1234567890,
+                        "token": "vk-community-token",
+                        "vk_groups_access_token": "vk-groups-access-token",
+                        "vk_group_access_tokens": "{\"12345\":\"vk-groups-access-token\"}",
+                    },
+                },
+            )
+            assert create_resp.status_code == 200
+
+            revoke_resp = client.post("/api/auth/vk/revoke", json={"instance_id": "vk-revoke-instance"})
+            assert revoke_resp.status_code == 200
+            revoke_data = revoke_resp.json()
+            assert revoke_data["ok"] is True
+            assert revoke_data["revoked_remote"] is True
+
+            instances_resp = client.get("/api/adapter-instances")
+            assert instances_resp.status_code == 200
+            instances = instances_resp.json()
+            instance = next(item for item in instances if item["id"] == "vk-revoke-instance")
+            assert not instance["secret_fields_present"].get("user_access_token_for_media")
+            assert not instance["secret_fields_present"].get("vk_oauth_access_token")
+            assert not instance["secret_fields_present"].get("vk_oauth_refresh_token")
+            assert not instance["secret_fields_present"].get("token")
+            assert not instance["secret_fields_present"].get("vk_groups_access_token")
+            assert not instance["secret_fields_present"].get("vk_group_access_tokens")
+            assert instance["config"]["vk_oauth_user_id"] is None
+            assert instance["config"]["vk_oauth_scope"] is None
+            assert instance["config"]["vk_oauth_token_expires_at"] is None
+
+            assert revoke_calls == [
+                {
+                    "client_id": "client-123",
+                    "access_token": "vk-user-access-token",
+                    "device_id": "device-777",
+                }
+            ]
+    finally:
+        sys.modules.pop("app.main", None)
+
+
 def test_vk_auth_callback_persists_refresh_metadata(monkeypatch, tmp_path):
     db_path = tmp_path / "vk_auth_callback.db"
     os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{db_path}"

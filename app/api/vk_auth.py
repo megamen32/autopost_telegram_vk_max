@@ -19,6 +19,8 @@ from app.services.vk_oauth import (
     compute_expires_at,
     exchange_code_for_token,
     extract_callback_payload,
+    logout_access_token,
+    revoke_access_token,
     VK_ID_GROUPS_SCOPE,
     vk_group_oauth_store,
     vk_oauth_store,
@@ -69,6 +71,54 @@ def _vk_admin_group_token_candidates(instance: dict) -> list[str]:
     return candidates
 
 
+def _vk_user_access_token_candidates(instance: dict) -> list[str]:
+    secrets = instance.get("secrets") or {}
+    candidates: list[str] = []
+    for token in (
+        secrets.get("user_access_token_for_media"),
+        secrets.get("vk_oauth_access_token"),
+        secrets.get("vk_groups_access_token"),
+    ):
+        token_value = str(token or "").strip()
+        if token_value and token_value not in candidates:
+            candidates.append(token_value)
+    return candidates
+
+
+def _vk_user_auth_secret_clears() -> dict[str, None]:
+    return {
+        "user_access_token_for_media": None,
+        "vk_oauth_access_token": None,
+        "vk_oauth_refresh_token": None,
+        "vk_oauth_id_token": None,
+        "vk_oauth_device_id": None,
+        "vk_oauth_token_expires_at": None,
+        "vk_media_access_token": None,
+        "vk_media_oauth_user_id": None,
+        "vk_media_oauth_scope": None,
+        "token": None,
+        "vk_groups_access_token": None,
+        "vk_group_access_tokens": None,
+        "vk_groups_oauth_user_id": None,
+        "vk_groups_oauth_scope": None,
+        "vk_groups_token_expires_at": None,
+    }
+
+
+def _vk_user_auth_config_clears() -> dict[str, None]:
+    return {
+        "vk_oauth_user_id": None,
+        "vk_oauth_scope": None,
+        "vk_oauth_token_expires_at": None,
+        "vk_media_oauth_user_id": None,
+        "vk_media_oauth_scope": None,
+        "vk_groups_oauth_user_id": None,
+        "vk_groups_oauth_scope": None,
+        "vk_groups_token_expires_at": None,
+        "vk_oauth_group_ids": None,
+    }
+
+
 def _is_vk_transient_token_check_error(error: dict) -> bool:
     error_msg = str(error.get("error_msg") or "").lower()
     return _VK_TRANSIENT_TOKEN_CHECK_ERROR in error_msg
@@ -81,8 +131,17 @@ async def _start_vk_id_oauth(
     container,
     scope: str,
     purpose: str,
+    revoke_existing: bool = False,
 ) -> dict[str, str]:
-    _, instance = await _load_vk_instance(instance_id=instance_id, session=session, container=container)
+    repo, instance = await _load_vk_instance(instance_id=instance_id, session=session, container=container)
+    if revoke_existing:
+        await _revoke_vk_user_access(
+            instance=instance,
+            repo=repo,
+            revoke_remote=True,
+            clear_local=True,
+        )
+        instance = await repo.get(instance_id, include_secrets=True) or instance
     client_id = _require_vk_client_id(instance)
 
     settings = get_settings()
@@ -104,6 +163,66 @@ async def _start_vk_id_oauth(
     )
     logger.info(f"vk oauth start | instance_id={instance_id} purpose={purpose} scope={scope}")
     return {"authorize_url": url, "state": oauth_session.state}
+
+
+async def _revoke_vk_user_access(
+    *,
+    instance: dict,
+    repo: AdapterInstancesRepo,
+    revoke_remote: bool,
+    clear_local: bool,
+) -> dict[str, object]:
+    config_updates = dict(instance.get("config") or {})
+    secret_updates = _vk_user_auth_secret_clears()
+    config_updates.update(_vk_user_auth_config_clears())
+
+    access_tokens = _vk_user_access_token_candidates(instance)
+    access_token = access_tokens[0] if access_tokens else None
+    client_id = str((instance.get("config") or {}).get("vk_id_client_id") or "").strip()
+    device_id = str((instance.get("secrets") or {}).get("vk_oauth_device_id") or "").strip() or None
+    remote_error: Exception | None = None
+    remote_result: dict | None = None
+
+    if revoke_remote and access_token:
+        if not client_id:
+            raise HTTPException(status_code=400, detail="Укажи VK ID Client ID, чтобы отозвать доступ на стороне VK")
+        try:
+            remote_result = await revoke_access_token(
+                client_id=client_id,
+                access_token=access_token,
+                device_id=device_id,
+            )
+        except Exception as revoke_exc:
+            remote_error = revoke_exc
+            logger.warning(f"vk revoke_access_token failed, trying logout fallback: {revoke_exc}")
+            try:
+                remote_result = await logout_access_token(
+                    client_id=client_id,
+                    access_token=access_token,
+                    device_id=device_id,
+                )
+            except Exception as logout_exc:
+                logger.exception(f"vk logout_access_token failed | instance_id={instance.get('id')}")
+                raise HTTPException(status_code=502, detail=f"Не удалось отозвать VK access token: {logout_exc}") from logout_exc
+
+    if clear_local:
+        await repo.upsert(
+            instance_id=instance["id"],
+            adapter_key=instance["adapter_key"],
+            platform=instance["platform"],
+            display_name=instance["display_name"],
+            enabled=instance["enabled"],
+            config=config_updates,
+            secret_updates=secret_updates,
+        )
+
+    return {
+        "ok": True,
+        "revoked_remote": remote_result is not None,
+        "access_token_present": bool(access_token),
+        "client_id_present": bool(client_id),
+        "remote_error": str(remote_error) if remote_error else None,
+    }
 
 
 def _build_vk_user_secret_updates(tokens: dict, *, device_id: str) -> dict[str, object]:
@@ -138,12 +257,14 @@ async def start_vk_auth(payload: dict, session: AsyncSession = Depends(get_sessi
     instance_id = payload.get("instance_id")
     if not instance_id:
         raise HTTPException(status_code=400, detail="instance_id is required")
+    revoke_existing = bool(payload.get("revoke_existing", False))
     return await _start_vk_id_oauth(
         instance_id=instance_id,
         session=session,
         container=container,
         scope=VK_ID_DEFAULT_SCOPE,
         purpose="profile",
+        revoke_existing=revoke_existing,
     )
 
 
@@ -152,12 +273,14 @@ async def start_vk_groups_scope_auth(payload: dict, session: AsyncSession = Depe
     instance_id = payload.get("instance_id")
     if not instance_id:
         raise HTTPException(status_code=400, detail="instance_id is required")
+    revoke_existing = bool(payload.get("revoke_existing", False))
     return await _start_vk_id_oauth(
         instance_id=instance_id,
         session=session,
         container=container,
         scope=VK_ID_GROUPS_SCOPE,
         purpose="groups",
+        revoke_existing=revoke_existing,
     )
 
 
@@ -166,12 +289,14 @@ async def start_vk_media_auth(payload: dict, session: AsyncSession = Depends(get
     instance_id = payload.get("instance_id")
     if not instance_id:
         raise HTTPException(status_code=400, detail="instance_id is required")
+    revoke_existing = bool(payload.get("revoke_existing", False))
     return await _start_vk_id_oauth(
         instance_id=instance_id,
         session=session,
         container=container,
         scope=VK_ID_DEFAULT_SCOPE,
         purpose="media",
+        revoke_existing=revoke_existing,
     )
 
 
@@ -291,6 +416,23 @@ async def finalize_vk_media_oauth(payload: dict, session: AsyncSession = Depends
     )
     logger.info(f"vk media oauth success | instance_id={oauth_session.adapter_instance_id} user_id={user_id}")
     return {"ok": True, "instance_id": oauth_session.adapter_instance_id}
+
+
+@router.post("/api/auth/vk/revoke")
+async def revoke_vk_auth(payload: dict, session: AsyncSession = Depends(get_session), container=Depends(get_container)):
+    instance_id = str(payload.get("instance_id") or "").strip()
+    if not instance_id:
+        raise HTTPException(status_code=400, detail="instance_id is required")
+
+    repo, instance = await _load_vk_instance(instance_id=instance_id, session=session, container=container)
+    result = await _revoke_vk_user_access(
+        instance=instance,
+        repo=repo,
+        revoke_remote=True,
+        clear_local=True,
+    )
+    logger.info(f"vk revoke success | instance_id={instance_id} revoked_remote={result['revoked_remote']}")
+    return result
 
 
 @router.get("/auth/vk/media-callback", response_class=HTMLResponse)

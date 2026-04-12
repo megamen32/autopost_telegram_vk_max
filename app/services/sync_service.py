@@ -27,7 +27,9 @@ class SyncService:
         self.adapter_registry = adapter_registry
 
     async def handle_post(self, post) -> None:
-        logger.info("incoming post | %s", {"source_adapter_id": getattr(post, "source_adapter_id", None), "source_chat_id": post.source_chat_id, "source_message_id": post.source_message_id})
+        logger.info(
+            f"incoming post | {{'source_adapter_id': {getattr(post, 'source_adapter_id', None)!r}, 'source_chat_id': {post.source_chat_id!r}, 'source_message_id': {post.source_message_id!r}}}"
+        )
         source_adapter = None
         if self.adapter_registry is not None:
             try:
@@ -42,13 +44,19 @@ class SyncService:
         ):
             if source_adapter is not None:
                 source_adapter._log_info("diagnostics: duplicate event skipped", source_chat_id=post.source_chat_id, source_message_id=post.source_message_id)
-            logger.info("duplicate event skipped | %s", {"source_chat_id": post.source_chat_id, "source_message_id": post.source_message_id})
+            logger.info(
+                f"duplicate event skipped | {{'source_chat_id': {post.source_chat_id!r}, 'source_message_id': {post.source_message_id!r}}}"
+            )
             return
 
         destinations = await self.routing_service.resolve_destinations(post)
-        logger.info("route lookup completed | %s", {"source_chat_id": post.source_chat_id, "matched_routes": [route.id for route, _ in destinations], "matched_count": len(destinations)})
+        logger.info(
+            f"route lookup completed | {{'source_chat_id': {post.source_chat_id!r}, 'matched_routes': {[route.id for route, _ in destinations]!r}, 'matched_count': {len(destinations)}}}"
+        )
         if len(destinations) > 1:
-            logger.warning("duplicate routes matched | %s", {"source_chat_id": post.source_chat_id, "route_ids": [route.id for route, _ in destinations]})
+            logger.warning(
+                f"duplicate routes matched | {{'source_chat_id': {post.source_chat_id!r}, 'route_ids': {[route.id for route, _ in destinations]!r}}}"
+            )
         if source_adapter is not None:
             source_adapter._log_info(
                 "diagnostics: route lookup completed",
@@ -85,7 +93,9 @@ class SyncService:
             )
             post_copy = self.lineage_service.extend_trace(post_copy, route.target_adapter_id)
             await self.delivery_service.deliver(route, post_copy)
-            logger.info("delivery job enqueued | %s", {"route_id": route.id, "target_adapter_id": route.target_adapter_id, "target_chat_id": route.target_chat_id})
+            logger.info(
+                f"delivery job enqueued | {{'route_id': {route.id!r}, 'target_adapter_id': {route.target_adapter_id!r}, 'target_chat_id': {route.target_chat_id!r}}}"
+            )
             if source_adapter is not None:
                 source_adapter._log_info(
                     "diagnostics: delivery job enqueued",

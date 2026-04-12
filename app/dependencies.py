@@ -112,14 +112,14 @@ async def lifespan(app):
         adapter_runtime_monitor=runtime_monitor,
     )
     app.state.container = container
-    logger.info("container created | %s", {"adapter_instances": len(snapshot), "queue_enabled": settings.delivery_queue_enabled})
+    logger.info(f"container created | {{'adapter_instances': {len(snapshot)}, 'queue_enabled': {settings.delivery_queue_enabled}}}")
 
     for adapter in [container.adapter_registry.get_by_instance(item['id']) for item in snapshot if item.get('enabled', True) and item['id'] in {x['instance_id'] for x in container.adapter_registry.list_instances()}]:
         try:
-            logger.info("starting adapter | %s", {"instance_id": adapter.instance_id, "platform": adapter.platform.value})
+            logger.info(f"starting adapter | {{'instance_id': {adapter.instance_id!r}, 'platform': {adapter.platform.value!r}}}")
             await adapter.startup(on_post=container.handle_adapter_post)
         except Exception as exc:
-            logger.exception("adapter startup failed | %s", {"instance_id": adapter.instance_id, "platform": adapter.platform.value})
+            logger.exception(f"adapter startup failed | {{'instance_id': {adapter.instance_id!r}, 'platform': {adapter.platform.value!r}}}")
             adapter._log_error(f"startup failed: {exc}", code="startup_failed")
             adapter._set_status("startup_failed", connected=False)
 
@@ -127,7 +127,7 @@ async def lifespan(app):
     if settings.delivery_queue_enabled:
         worker = DeliveryWorkerRunner(container, poll_interval_seconds=settings.delivery_worker_poll_interval_seconds)
         await worker.start()
-        logger.info("delivery worker started | %s", {"poll_interval": settings.delivery_worker_poll_interval_seconds})
+        logger.info(f"delivery worker started | {{'poll_interval': {settings.delivery_worker_poll_interval_seconds}}}")
     app.state.delivery_worker = worker
 
     try:

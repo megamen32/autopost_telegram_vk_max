@@ -13,6 +13,8 @@ import httpx
 
 VK_ID_AUTHORIZE_URL = "https://id.vk.ru/authorize"
 VK_ID_TOKEN_URL = "https://id.vk.ru/oauth2/auth"
+VK_ID_REVOKE_URL = "https://id.vk.ru/oauth2/revoke"
+VK_ID_LOGOUT_URL = "https://id.vk.ru/oauth2/logout"
 VK_ID_DEFAULT_SCOPE = "vkid.personal_info photos video wall market groups"
 VK_ID_GROUPS_SCOPE = "groups"
 
@@ -173,8 +175,48 @@ async def refresh_access_token(
 
 
 async def _request_tokens(data: dict[str, str]) -> dict:
+    return await _post_vk_id_form(VK_ID_TOKEN_URL, data)
+
+
+async def revoke_access_token(
+    *,
+    client_id: str,
+    access_token: str,
+    device_id: str | None = None,
+    state: str | None = None,
+) -> dict:
+    data: dict[str, str] = {
+        "client_id": client_id,
+        "access_token": access_token,
+    }
+    if device_id:
+        data["device_id"] = device_id
+    if state:
+        data["state"] = state
+    return await _post_vk_id_form(VK_ID_REVOKE_URL, data)
+
+
+async def logout_access_token(
+    *,
+    client_id: str,
+    access_token: str,
+    device_id: str | None = None,
+    state: str | None = None,
+) -> dict:
+    data: dict[str, str] = {
+        "client_id": client_id,
+        "access_token": access_token,
+    }
+    if device_id:
+        data["device_id"] = device_id
+    if state:
+        data["state"] = state
+    return await _post_vk_id_form(VK_ID_LOGOUT_URL, data)
+
+
+async def _post_vk_id_form(url: str, data: dict[str, str]) -> dict:
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(VK_ID_TOKEN_URL, data=data)
+        resp = await client.post(url, data=data)
         resp.raise_for_status()
         return resp.json()
 

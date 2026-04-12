@@ -50,7 +50,9 @@ async def process_due_delivery_jobs(container: "Container") -> int:
                 route = route_from_dict(payload["route"])
                 post = unified_post_from_dict(payload["post"])
                 adapter = container.adapter_registry.get_by_instance(route.target_adapter_id)
-                logger.info("delivery job started | %s", {"job_id": job["id"], "route_id": route.id, "target_adapter_id": route.target_adapter_id, "target_chat_id": route.target_chat_id})
+                logger.info(
+                    f"delivery job started | {{'job_id': {job['id']}, 'route_id': {route.id!r}, 'target_adapter_id': {route.target_adapter_id!r}, 'target_chat_id': {route.target_chat_id!r}}}"
+                )
                 target_message_id = await adapter.publish_post(route.target_chat_id, post)
                 await message_links_repo.create(
                     origin_platform=post.source_platform.value,
@@ -65,11 +67,13 @@ async def process_due_delivery_jobs(container: "Container") -> int:
                 await heartbeat.stop()
                 await jobs_repo.mark_succeeded(job["id"], lock_token=job["lock_token"])
                 await session.commit()
-                logger.info("delivery job succeeded | %s", {"job_id": job["id"], "target_message_id": target_message_id})
+                logger.info(f"delivery job succeeded | {{'job_id': {job['id']}, 'target_message_id': {target_message_id!r}}}")
                 processed += 1
             except Exception as exc:
                 await heartbeat.stop()
-                logger.exception("delivery job failed | %s", {"job_id": job["id"], "target_platform": job["target_platform"]})
+                logger.exception(
+                    f"delivery job failed | {{'job_id': {job['id']}, 'target_platform': {job['target_platform']!r}}}"
+                )
                 try:
                     adapter._log_error(f"delivery publish failed: {exc}", code="delivery_publish_failed", job_id=job["id"], route_id=route.id, target_chat_id=route.target_chat_id)
                 except Exception:
@@ -83,7 +87,9 @@ async def process_due_delivery_jobs(container: "Container") -> int:
                     max_attempts=job["max_attempts"],
                 )
                 if decision.should_retry:
-                    logger.warning("delivery job scheduled for retry | %s", {"job_id": job["id"], "error_code": decision.error_code, "delay_seconds": decision.delay_seconds})
+                    logger.warning(
+                        f"delivery job scheduled for retry | {{'job_id': {job['id']}, 'error_code': {decision.error_code!r}, 'delay_seconds': {decision.delay_seconds}}}"
+                    )
                     await jobs_repo.mark_retry(
                         job["id"],
                         lock_token=job["lock_token"],
@@ -93,7 +99,7 @@ async def process_due_delivery_jobs(container: "Container") -> int:
                         error_code=decision.error_code,
                     )
                 else:
-                    logger.error("delivery job dead-lettered | %s", {"job_id": job["id"], "error_code": decision.error_code})
+                    logger.error(f"delivery job dead-lettered | {{'job_id': {job['id']}, 'error_code': {decision.error_code!r}}}")
                     await jobs_repo.mark_dead_letter(
                         job["id"],
                         lock_token=job["lock_token"],

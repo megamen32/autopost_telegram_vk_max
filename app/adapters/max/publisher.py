@@ -28,7 +28,7 @@ class MaxPublisher:
             response = await self.client.send_message(chat_id=int(chat_id), body=body)
         except MaxApiError as exc:
             if attachments:
-                logger.warning("MAX message send failed with attachments, retrying without attachments: %s", exc)
+                logger.warning(f"MAX message send failed with attachments, retrying without attachments: {exc}")
                 fallback_text = post.text or ""
                 fallback_links = [item.url for item in post.media if item.url]
                 if fallback_links:

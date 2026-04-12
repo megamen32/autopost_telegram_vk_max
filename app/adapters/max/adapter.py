@@ -86,7 +86,7 @@ class MaxAdapter(BaseAdapter):
             try:
                 await self._get_client().delete_webhook_subscriptions()
             except Exception:
-                logger.info("MAX webhook cleanup skipped for %s", self.instance_id)
+                logger.info(f"MAX webhook cleanup skipped for {self.instance_id}")
             self._polling_task = asyncio.create_task(self._run_long_poll_loop(), name=f"max-long-poll-{self.instance_id}")
             self._set_status("running", connected=True)
             self._log_info("max long poll started")
