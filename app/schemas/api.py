@@ -45,7 +45,7 @@ class RouteSchema(BaseModel):
 
 
 class AdapterInstanceUpsertSchema(BaseModel):
-    id: str = Field(min_length=1)
+    id: str | None = None
     adapter_key: str = Field(min_length=1)
     display_name: str = Field(min_length=1)
     enabled: bool = True

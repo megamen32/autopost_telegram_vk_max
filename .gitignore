@@ -55,3 +55,5 @@ temp/
 *.tmp
 *.pyc
 *.pyd
+.playwright-cli/*
+output_vk_chunks/*

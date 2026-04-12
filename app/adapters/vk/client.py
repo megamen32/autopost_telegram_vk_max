@@ -11,7 +11,16 @@ logger = logging.getLogger(__name__)
 
 
 class VkApiError(RuntimeError):
-    pass
+    def __init__(self, *, method: str, error: dict[str, Any]) -> None:
+        self.method = method
+        self.error = error
+        self.error_code = error.get("error_code")
+        self.error_msg = str(error.get("error_msg") or "Unknown VK API error")
+        super().__init__(f"VK API error for {method}: [{self.error_code}] {self.error_msg}")
+
+    @property
+    def is_auth_error(self) -> bool:
+        return self.error_code == 5
 
 
 class VkClient:
@@ -36,7 +45,7 @@ class VkClient:
 
         if "error" in data:
             error = data["error"]
-            raise VkApiError(f"VK API error for {method}: {error}")
+            raise VkApiError(method=method, error=error)
         return data["response"]
 
     async def upload_file(

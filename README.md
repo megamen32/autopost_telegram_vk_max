@@ -193,6 +193,26 @@ VK webhook endpoint: `/webhooks/vk`.
 Supported incoming callback types in this build: `message_new`, `wall_post_new`, and `confirmation`.
 Publishing currently supports text and photo uploads to community wall; video/audio/document media fall back to links where possible.
 
+For VK OAuth in the Web UI, it is enough to register one trusted redirect URL: `/auth/vk/callback`.
+The app now uses this shared callback for VK ID code flow, media token implicit flow, and group-token implicit flow.
+
+If the current VK app configuration does not yield a usable `wall` / `photos` API token, the VK adapter can fall back to browser publishing through an already authorized Chrome session.
+This is an explicit opt-in fallback for local use, not the main open-source integration path.
+
+Install the optional extra first:
+
+```bash
+pip install .[vk-browser]
+```
+
+Then set `VK Browser CDP URL` in the VK adapter advanced settings, for example `http://127.0.0.1:9222`, and run Chrome with remote debugging enabled:
+
+```bash
+open -na "Google Chrome" --args --remote-debugging-port=9222
+```
+
+Then sign in to VK in that Chrome window once. After that the adapter can publish a community wall post with photo through the web UI fallback.
+
 
 ## MAX adapter
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable
 
+from app.help.registry import HelpEntry
+
 
 @dataclass(slots=True)
 class VisibilityRule:
@@ -28,6 +30,7 @@ class AdapterSettingField:
     required: bool = False
     secret: bool = False
     help_text: str | None = None
+    help_entry_id: str | None = None
     placeholder: str | None = None
     options: list[dict[str, str]] = field(default_factory=list)
     default: Any = None
@@ -47,7 +50,8 @@ class AdapterDefinition:
     title: str
     description: str
     fields: list[AdapterSettingField]
-    factory: Callable[[str, dict[str, Any], dict[str, Any]], Any]
+    help_entries: list[HelpEntry] = field(default_factory=list)
+    factory: Callable[[str, dict[str, Any], dict[str, Any]], Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -56,6 +60,7 @@ class AdapterDefinition:
             "title": self.title,
             "description": self.description,
             "fields": [field.to_dict() for field in self.fields],
+            "help_entries": [entry.to_dict() for entry in self.help_entries],
         }
 
 

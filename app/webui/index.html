@@ -13,7 +13,7 @@
     .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.row4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
     .btn{padding:10px 14px;border:0;border-radius:10px;background:#2563eb;color:white;cursor:pointer}.btn.secondary{background:#334155}.btn.danger{background:#b91c1c}.btn.small{padding:6px 10px;font-size:12px}
     .muted{color:#94a3b8;font-size:13px}.mono{font-family:ui-monospace,monospace}.pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#1e293b;font-size:12px}.hidden{display:none}.toast{position:fixed;right:20px;bottom:20px;background:#111827;border:1px solid #475569;padding:10px 14px;border-radius:10px}
-    table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid #334155;text-align:left;vertical-align:top}.route-head{cursor:pointer}.route-expanded{background:#0b1220}.warning{color:#fbbf24}.good{color:#86efac}.inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid #334155;text-align:left;vertical-align:top}.route-head{cursor:pointer}.route-expanded{background:#0b1220}.warning{color:#fbbf24}.good{color:#86efac}.inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.faq-link{margin-left:auto;color:#93c5fd;text-decoration:none;padding:10px 14px}.help-icon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:999px;border:1px solid #475569;background:#0f172a;color:#93c5fd;font-size:12px;cursor:pointer;margin-left:6px}.label-row{display:flex;align-items:center;gap:6px}.drawer-backdrop{position:fixed;inset:0;background:rgba(2,6,23,.55);display:none}.drawer-backdrop.open{display:block}.drawer{position:absolute;right:0;top:0;bottom:0;width:min(560px,100%);background:#020617;border-left:1px solid #334155;padding:20px;overflow:auto}.drawer-close{margin-left:auto}.md h1,.md h2,.md h3{margin:10px 0}.md p,.md li{line-height:1.5;color:#cbd5e1}
   </style>
 </head>
 <body><div class="wrap">
@@ -24,7 +24,7 @@
     <button data-tab="routes">Routes</button>
     <button data-tab="jobs">Jobs</button>
     <button data-tab="links">Post status</button>
-    <button data-tab="diagnostics">Diagnostics</button>
+    <button data-tab="diagnostics">Diagnostics</button><a class="faq-link" href="/faq.html" target="_blank">FAQ / Где что взять</a>
   </div>
   <section id="tab-overview" class="tab active"><div id="overview"></div></section>
   <section id="tab-adapters" class="tab">
@@ -38,9 +38,9 @@
       <form id="routeForm">
         <div class="row">
           <label><span class="label">Откуда</span><select name="source_adapter_id"></select></label>
-          <label><span class="label">Источник: chat id / username / ссылка</span><input name="source_chat_id" required><span class="help">Можно указать числовой chat id, @username или ссылку вида https://t.me/username</span></label>
+          <label><span class="label-row"><span class="label">Источник: chat id / username / ссылка</span><button class="help-icon" type="button" data-help-id="route.source_chat" title="Открыть справку">?</button></span><input name="source_chat_id" required><span class="help">Можно указать числовой chat id, @username или ссылку вида https://t.me/username</span></label>
           <label><span class="label">Куда</span><select name="target_adapter_id"></select></label>
-          <label><span class="label">Назначение: chat id / username / ссылка</span><input name="target_chat_id" required><span class="help">Можно указать числовой chat id, @username или ссылку вида https://t.me/username</span></label>
+          <label><span class="label-row"><span class="label">Назначение: chat id / username / ссылка</span><button class="help-icon" type="button" data-help-id="route.target_chat" title="Открыть справку">?</button></span><input name="target_chat_id" required><span class="help">Можно указать числовой chat id, @username или ссылку вида https://t.me/username</span></label>
         </div>
         <div class="inline" style="margin-top:8px"><button class="btn" type="submit">Создать маршрут</button><span class="muted">ID маршрута будет создан автоматически.</span></div>
       </form>
@@ -50,12 +50,31 @@
   <section id="tab-jobs" class="tab"><div class="card"><div id="jobs"></div></div></section>
   <section id="tab-links" class="tab"><div class="card"><div id="links"></div></div></section>
   <section id="tab-diagnostics" class="tab"><div class="card"><div id="diagnosticsPanel"></div></div></section>
-</div><div id="toast" class="toast hidden"></div>
+</div><div id="toast" class="toast hidden"></div><div id="helpBackdrop" class="drawer-backdrop"><div class="drawer"><div class="inline"><h2 id="helpTitle" style="margin:0">Справка</h2><button class="btn secondary btn small drawer-close" id="helpCloseBtn" type="button">Закрыть</button></div><div id="helpSummary" class="muted" style="margin:8px 0 14px"></div><div id="helpBody" class="md"></div></div></div>
 <script>
-const state={defs:[],instances:[],overview:{},routes:[],jobs:[],links:[],diagnostics:{},expandedRouteId:null};
+const state={defs:[],instances:[],overview:{},routes:[],jobs:[],links:[],diagnostics:{},expandedRouteId:null,helpEntries:[],vkAdminGroups:{},vkAdminGroupsLoading:{},vkAdminGroupsSelected:{}};
 const $=s=>document.querySelector(s); const $$=s=>Array.from(document.querySelectorAll(s)); const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 async function api(url, opts={}){const r=await fetch(url,{headers:{'content-type':'application/json'},...opts}); if(!r.ok) throw new Error(await r.text()); return r.headers.get('content-type')?.includes('json')?r.json():r.text()}
 function toast(msg){const el=$('#toast');el.textContent=msg;el.classList.remove('hidden');setTimeout(()=>el.classList.add('hidden'),3000)}
+function formatUnixTs(ts){ const value=Number(ts); if(!Number.isFinite(value) || value<=0) return '—'; return new Date(value*1000).toLocaleString('ru-RU'); }
+function mdToHtml(md){
+  const escHtml=s=>String(s||'').replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[m]));
+  return String(md||'').split(/\n\n+/).map(block=>{
+    if(block.startsWith('### ')) return `<h3>${escHtml(block.slice(4))}</h3>`;
+    if(block.startsWith('## ')) return `<h2>${escHtml(block.slice(3))}</h2>`;
+    if(block.startsWith('# ')) return `<h1>${escHtml(block.slice(2))}</h1>`;
+    if(block.split('\n').every(line=>line.trim().startsWith('- '))){
+      return `<ul>${block.split('\n').map(line=>`<li>${escHtml(line.trim().slice(2))}</li>`).join('')}</ul>`;
+    }
+    return `<p>${escHtml(block).replace(/\n/g,'<br>')}</p>`;
+  }).join('');
+}
+function findHelpEntry(id){ return (state.helpEntries||[]).find(x=>x.id===id); }
+function openHelp(id){ const entry=findHelpEntry(id); if(!entry){ toast('Справка пока не найдена'); return; } $('#helpTitle').textContent=entry.title||'Справка'; $('#helpSummary').textContent=entry.summary||''; $('#helpBody').innerHTML=mdToHtml(entry.body_markdown||''); $('#helpBackdrop').classList.add('open'); }
+function closeHelp(){ $('#helpBackdrop').classList.remove('open'); }
+function helpButton(id){ return id ? `<button class="help-icon" type="button" data-help-id="${esc(id)}" title="Открыть справку">?</button>` : ''; }
+function attachHelpButtons(root=document){ root.querySelectorAll('[data-help-id]').forEach(btn=>btn.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); openHelp(btn.dataset.helpId); }); }
+
 $$('.tabs button').forEach(b=>b.onclick=()=>{$$('.tabs button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); $$('.tab').forEach(x=>x.classList.remove('active')); $('#tab-'+b.dataset.tab).classList.add('active')})
 function bool(v){return String(v)==='true'} function listStr(v){return String(v||'').split(',').map(x=>x.trim()).filter(Boolean)}
 function valueFromField(field, raw){ if(field.field_type==='bool') return bool(raw); if(field.field_type==='int') return raw===''?null:Number(raw); if(field.field_type==='float') return raw===''?null:Number(raw); if(field.field_type==='list_str') return listStr(raw); return raw===''?null:String(raw)}
@@ -66,10 +85,179 @@ function updateFieldVisibility(form, def){ const values=collectFormValues(form, 
 function buildDiagnostics(){ const o=state.overview||{}; const diagnostics=[]; if((o.routes_total||0)>0 && (o.routes_with_policy||0)===0) diagnostics.push('Есть маршруты, но ни у одного нет настроек синхронизации'); if((o.routes_total||0) > (o.routes_with_policy||0)) diagnostics.push('У части маршрутов не настроена политика синхронизации'); const disabledUpdates=(state.instances||[]).filter(x=>x.enabled && x.config && x.config.receive_updates===false); if(disabledUpdates.length) diagnostics.push('Adapter receives no updates: '+disabledUpdates.map(x=>x.id).join(', ')); if((o.jobs_total||0)===0) diagnostics.push('Delivery queue is idle'); return diagnostics;}
 function renderOverview(){ const o=state.overview||{}; const diagnostics=buildDiagnostics(); const statuses=o.adapter_runtime_statuses||[]; $('#overview').innerHTML=`<div class="grid"><div class="card"><h3>Сводка</h3><div class="muted">adapter instances: ${o.adapter_instances_total||0}</div><div class="muted">routes: ${o.routes_total||0}</div><div class="muted">routes with sync settings: ${o.routes_with_policy||0}</div><div class="muted">jobs: ${o.jobs_total||0}</div><div class="muted">links: ${o.links_total||0}</div></div><div class="card"><h3>Runtime adapters</h3>${statuses.map(x=>`<div style="margin-bottom:10px"><div class="mono">${esc(x.instance_id)} <span class="pill">${esc(x.platform)}</span> <span class="pill">${esc(x.status||'unknown')}</span> ${x.connected?'<span class="good">connected</span>':'<span class="warning">not connected</span>'}</div><div class="muted">events: ${x.events_received||0}, ignored: ${x.events_ignored||0}, published: ${x.posts_published||0}</div>${x.last_error?`<div class="warning">last error: ${esc(x.last_error)}</div>`:''}${(x.logs||[]).slice(0,3).map(log=>`<div class="muted mono">${esc(log.ts||'')} ${esc(log.message||'')}</div>`).join('')}</div>`).join('')||'<div class="muted">пока нет</div>'}</div><div class="card"><h3>Jobs by status</h3>${Object.entries(o.jobs_by_status||{}).map(([k,v])=>`<div>${esc(k)}: ${v}</div>`).join('')||'<div class="muted">пусто</div>'}</div><div class="card"><h3>Диагностика</h3>${diagnostics.length?diagnostics.map(x=>`<div class="muted">${esc(x)}</div>`).join(''):'<div class="muted">Явных проблем не найдено</div>'}</div></div>`;}
 function renderDefinitionsSelect(){ $('#newAdapterKey').innerHTML=state.defs.map(d=>`<option value="${esc(d.adapter_key)}">${esc(d.title)}</option>`).join('') }
-function buildInstanceCard(instance){ const def=state.defs.find(d=>d.adapter_key===instance.adapter_key); if(!def) return ''; const cfg=instance.config||{}; const present=instance.secret_fields_present||{}; const simple=def.fields.filter(f=>f.scope==='simple'); const adv=def.fields.filter(f=>f.scope==='advanced'); const renderFields=(fields)=>fields.map(f=>`<label data-field-wrapper="1" data-field-name="${esc(f.name)}"><span class="label">${esc(f.label)}</span>${fieldInput(f, cfg[f.name], !!present[f.name])}<span class="help">${esc(f.help_text||'')}</span></label>`).join(''); return `<div class="card"><div class="inline" style="justify-content:space-between"><div><h3>${esc(instance.display_name)}</h3><div class="muted mono">${esc(instance.id)} · ${esc(instance.adapter_key)} · ${esc(instance.platform)}</div></div><div class="inline"><span class="pill">${instance.enabled?'enabled':'disabled'}</span><button class="btn secondary toggle-advanced" data-id="${esc(instance.id)}">advanced</button><button class="btn danger delete-instance" data-id="${esc(instance.id)}">delete</button></div></div><form class="instance-form" data-id="${esc(instance.id)}" data-adapter-key="${esc(instance.adapter_key)}"><div class="row3">${renderFields(simple)}</div><div class="advanced hidden" id="adv-${esc(instance.id)}"><div class="row3">${renderFields(adv)}</div></div><div class="inline"><button class="btn" type="submit">Сохранить</button><span class="muted">Секретные поля можно оставлять пустыми — старое значение сохранится.</span></div></form></div>` }
-function renderInstances(){ $('#adapterInstances').innerHTML=(state.instances||[]).map(buildInstanceCard).join('')||'<div class="card"><div class="muted">Инстансов пока нет</div></div>'; $$('.toggle-advanced').forEach(b=>b.onclick=()=>$('#adv-'+b.dataset.id).classList.toggle('hidden')); $$('.delete-instance').forEach(b=>b.onclick=async()=>{await api('/api/adapter-instances/'+encodeURIComponent(b.dataset.id),{method:'DELETE'}); toast('Инстанс удалён'); await refreshAll()}); $$('.instance-form').forEach(f=>{ const def=state.defs.find(x=>x.adapter_key===f.dataset.adapterKey); const reeval=()=>updateFieldVisibility(f, def); f.onchange=reeval; f.oninput=reeval; reeval(); f.onsubmit=saveInstanceForm }) }
+function getVkAdminGroups(instanceId){ return state.vkAdminGroups[instanceId] || []; }
+function buildVkGroupsPicker(instance, groups){
+  if(!groups.length) return '';
+  const preferredGroupId = String(instance?.config?.group_id || '').trim();
+  const selectedCount = groups.length;
+  const selectedGroupIds = new Set(state.vkAdminGroupsSelected[instance.id] || groups.map(group => String(group.id)));
+  return `<div class="card" style="margin-top:10px;padding:12px;background:#020617;border:1px solid #334155" data-vk-groups-panel="${esc(instance.id)}">
+    <div class="inline" style="justify-content:space-between;align-items:center">
+      <strong>Админ-группы</strong>
+      <div class="inline">
+        <button class="btn secondary btn small vk-select-all-btn" type="button" data-id="${esc(instance.id)}">Выбрать все</button>
+        <button class="btn secondary btn small vk-clear-groups-btn" type="button" data-id="${esc(instance.id)}">Снять все</button>
+      </div>
+    </div>
+    <div class="help" style="margin-top:8px">Выбранные <code>group_ids</code> уйдут в legacy community-token OAuth. Для сохранения токена в инстанс будет использован токен текущего <code>VK Group ID</code>.</div>
+    <div class="help">Найдено групп: <span class="mono">${selectedCount}</span>${preferredGroupId ? ` · текущий VK Group ID: <span class="mono">${esc(preferredGroupId)}</span>` : ''}</div>
+    <div style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">
+      ${groups.map(group => {
+        const groupId = String(group.id);
+        const checked = selectedGroupIds.has(groupId) ? 'checked' : '';
+        const title = [group.name, group.screen_name ? `@${group.screen_name}` : null].filter(Boolean).join(' · ');
+        return `<label style="display:flex;gap:8px;align-items:flex-start;padding:8px;border:1px solid #334155;border-radius:10px;background:#0f172a">
+          <input class="checkbox vk-group-checkbox" type="checkbox" data-instance-id="${esc(instance.id)}" data-group-id="${esc(groupId)}" ${checked}>
+          <span>
+            <span class="mono">${esc(groupId)}</span>
+            <span class="help">${esc(title || 'Без названия')}</span>
+          </span>
+        </label>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+function buildVkOauthCard(instance, cfg, present){
+  const groups = getVkAdminGroups(instance.id);
+  const hasUserToken = !!present.user_access_token_for_media;
+  const hasRefreshToken = !!present.vk_oauth_refresh_token;
+  const hasGroupsScopeToken = !!present.vk_groups_access_token;
+  const hasLegacyGroupToken = !!present.token;
+  return `<div class="card" style="margin:10px 0;padding:12px;background:#0f172a;border:1px solid #1e293b">
+    <div class="inline" style="justify-content:space-between;align-items:flex-start;gap:12px">
+      <div>
+        <div style="font-weight:600">Официальный VK ID OAuth</div>
+        <div class="muted" style="margin-top:4px">${hasUserToken ? 'VK user token сохранён. Этот путь используется для публикации текста, фото и видео через официальный API.' : 'Подключи VK user token через VK ID. Это основной путь для публикации постов с фото.'}</div>
+        <div class="help" style="margin-top:8px">Где взять Client ID: открой кабинет VK ID / своё приложение / Параметры приложения / поле client_id.</div>
+        <div class="help">Access token для публикации: <span class="mono">${hasUserToken ? 'saved' : 'not saved'}</span></div>
+        <div class="help">Refresh token: <span class="mono">${hasRefreshToken ? 'saved' : 'not saved'}</span></div>
+        <div class="help">Срок действия access token: <span class="mono">${esc(formatUnixTs(cfg.vk_oauth_token_expires_at))}</span></div>
+        <div class="help">Groups scope token для списка админ-групп: <span class="mono">${hasGroupsScopeToken ? 'saved' : 'not saved'}</span></div>
+        <div class="help">Legacy group token: <span class="mono">${hasLegacyGroupToken ? 'saved' : 'not saved'}</span></div>
+        <div class="help">Если у тебя несколько сообществ, сначала загрузи список через <code>groups.get</code>, потом при необходимости запусти legacy community-token flow для выбранных <code>group_ids</code>.</div>
+        <div class="help">user_id: <span class="mono">${esc(cfg.vk_oauth_user_id || '—')}</span></div>
+        <div class="help">scope: <span class="mono">${esc(cfg.vk_oauth_scope || '—')}</span></div>
+      </div>
+      <div class="inline" style="align-items:flex-start;flex-direction:column">
+        <button class="btn vk-auth-btn" type="button" data-id="${esc(instance.id)}">Войти с VK</button>
+        <button class="btn secondary vk-load-groups-btn" type="button" data-id="${esc(instance.id)}" style="margin-top:8px">Загрузить админ-группы</button>
+        <button class="btn secondary vk-groups-auth-btn" type="button" data-id="${esc(instance.id)}" style="margin-top:8px">Legacy: токен сообщества</button>
+      </div>
+    </div>
+    ${buildVkGroupsPicker(instance, groups)}
+  </div>`;
+}
+function buildInstanceCard(instance){
+  const def = state.defs.find(d => d.adapter_key === instance.adapter_key);
+  if(!def) return '';
+  const cfg = instance.config || {};
+  const present = instance.secret_fields_present || {};
+  const simple = def.fields.filter(f => f.scope === 'simple');
+  const adv = def.fields.filter(f => f.scope === 'advanced');
+  const renderFields = (fields) => fields.map(f => `<label data-field-wrapper="1" data-field-name="${esc(f.name)}"><span class="label-row"><span class="label">${esc(f.label)}</span>${helpButton(f.help_entry_id)}</span>${fieldInput(f, cfg[f.name], !!present[f.name])}<span class="help">${esc(f.help_text || '')}</span></label>`).join('');
+  const vkOauthStatus = instance.adapter_key === 'vk' ? buildVkOauthCard(instance, cfg, present) : '';
+  return `<div class="card"><div class="inline" style="justify-content:space-between"><div><h3>${esc(instance.display_name)}</h3><div class="muted mono">${esc(instance.id)} · ${esc(instance.adapter_key)} · ${esc(instance.platform)}</div></div><div class="inline"><span class="pill">${instance.enabled ? 'enabled' : 'disabled'}</span><button class="btn secondary toggle-advanced" data-id="${esc(instance.id)}">advanced</button><button class="btn danger delete-instance" data-id="${esc(instance.id)}">delete</button></div></div><form class="instance-form" data-id="${esc(instance.id)}" data-adapter-key="${esc(instance.adapter_key)}"><div class="row3">${renderFields(simple)}</div>${vkOauthStatus}<div class="advanced hidden" id="adv-${esc(instance.id)}"><div class="row3">${renderFields(adv)}</div></div><div class="inline"><button class="btn" type="submit">Сохранить</button><span class="muted">Секретные поля можно оставлять пустыми — старое значение сохранится.</span></div></form></div>`;
+}
+function renderInstances(){
+  $('#adapterInstances').innerHTML=(state.instances||[]).map(buildInstanceCard).join('')||'<div class="card"><div class="muted">Инстансов пока нет</div></div>';
+  $$('.toggle-advanced').forEach(b=>b.onclick=()=>$('#adv-'+b.dataset.id).classList.toggle('hidden'));
+  $$('.delete-instance').forEach(b=>b.onclick=async()=>{await api('/api/adapter-instances/'+encodeURIComponent(b.dataset.id),{method:'DELETE'}); toast('Инстанс удалён'); await refreshAll()});
+  $$('.vk-auth-btn').forEach(b=>b.onclick=async()=>{ try{ await startVkAuth(b.dataset.id); } catch(e){ toast(e.message); } });
+  $$('.vk-load-groups-btn').forEach(b=>b.onclick=async()=>{ try{ await loadVkAdminGroups(b.dataset.id); } catch(e){ toast(e.message); } });
+  $$('.vk-groups-auth-btn').forEach(b=>b.onclick=async()=>{ try{ await startVkGroupsAuth(b.dataset.id); } catch(e){ toast(e.message); } });
+  $$('.vk-select-all-btn').forEach(b=>b.onclick=()=>setVkGroupChecks(b.dataset.id, true));
+  $$('.vk-clear-groups-btn').forEach(b=>b.onclick=()=>setVkGroupChecks(b.dataset.id, false));
+  $$('.vk-group-checkbox').forEach(cb=>cb.onchange=()=>{ state.vkAdminGroupsSelected[cb.dataset.instanceId] = getSelectedVkGroupIds(cb.dataset.instanceId); });
+  $$('.instance-form').forEach(f=>{ const def=state.defs.find(x=>x.adapter_key===f.dataset.adapterKey); const reeval=()=>updateFieldVisibility(f, def); f.onchange=reeval; f.oninput=reeval; reeval(); f.onsubmit=saveInstanceForm });
+  attachHelpButtons($('#adapterInstances'));
+  for(const instance of (state.instances||[])){
+    if(instance.adapter_key !== 'vk') continue;
+    const present = instance.secret_fields_present || {};
+    if (!(present.vk_groups_access_token || present.vk_oauth_access_token || present.user_access_token_for_media)) continue;
+    if (getVkAdminGroups(instance.id).length || state.vkAdminGroupsLoading[instance.id]) continue;
+    loadVkAdminGroups(instance.id, {silent:true}).catch(()=>{});
+  }
+}
 async function saveInstanceForm(e){ e.preventDefault(); const form=e.currentTarget; const id=form.dataset.id; const adapter_key=form.dataset.adapterKey; const instance=state.instances.find(x=>x.id===id); const def=state.defs.find(x=>x.adapter_key===adapter_key); const config={}, secrets={}; for(const field of def.fields){ const el=form.querySelector(`[data-name="${field.name}"]`); if(!el) continue; const value=valueFromField(field, el.value); if(field.secret){ if(el.value.trim()!=='') secrets[field.name]=value; } else { if(field.name==='display_name') continue; if(field.name==='enabled') continue; config[field.name]=value; } } await api('/api/adapter-instances',{method:'POST', body:JSON.stringify({id,adapter_key,display_name:form.querySelector('[data-name="display_name"]').value||instance.display_name,enabled:bool(form.querySelector('[data-name="enabled"]').value),config,secrets})}); toast('Сохранено. Для runtime нужен restart.'); await refreshAll() }
-async function createInstance(){ const adapter_key=$('#newAdapterKey').value; const id=$('#newInstanceId').value.trim(); const display_name=$('#newDisplayName').value.trim()||id; if(!id) return toast('Нужен id'); await api('/api/adapter-instances',{method:'POST', body:JSON.stringify({id,adapter_key,display_name,enabled:true,config:{},secrets:{}})}); toast('Инстанс создан'); $('#newInstanceId').value=''; $('#newDisplayName').value=''; await refreshAll() }
+async function createInstance(){ const adapter_key=$('#newAdapterKey').value; const display_name=$('#newDisplayName').value.trim(); if(!display_name) return toast('Нужно название'); await api('/api/adapter-instances',{method:'POST', body:JSON.stringify({id:null,adapter_key,display_name,enabled:true,config:{},secrets:{}})}); toast('Инстанс создан'); $('#newDisplayName').value=''; await refreshAll() }
+function getSelectedVkGroupIds(instanceId){
+  return $$('.vk-group-checkbox')
+    .filter(el => el.dataset.instanceId === instanceId && el.checked)
+    .map(el => el.dataset.groupId)
+    .filter(Boolean);
+}
+function setVkGroupChecks(instanceId, checked){
+  $$('.vk-group-checkbox').forEach(el => {
+    if (el.dataset.instanceId === instanceId) {
+      el.checked = checked;
+    }
+  });
+  state.vkAdminGroupsSelected[instanceId] = getSelectedVkGroupIds(instanceId);
+}
+async function loadVkAdminGroups(instanceId, {silent=false}={}){
+  if (state.vkAdminGroupsLoading[instanceId]) return;
+  state.vkAdminGroupsLoading[instanceId] = true;
+  try{
+    const instance = state.instances.find(x => x.id === instanceId);
+    const hasAnyUserToken = !!(
+      instance?.secret_fields_present?.vk_oauth_access_token ||
+      instance?.secret_fields_present?.user_access_token_for_media ||
+      instance?.secret_fields_present?.vk_groups_access_token
+    );
+    if (!hasAnyUserToken) {
+      await startVkGroupsScopeAuth(instanceId);
+      return;
+    }
+    const res = await api('/api/auth/vk/groups',{method:'POST', body:JSON.stringify({instance_id: instanceId})});
+    const groups = res.groups || [];
+    state.vkAdminGroups[instanceId] = groups;
+    if (!state.vkAdminGroupsSelected[instanceId] || !state.vkAdminGroupsSelected[instanceId].length) {
+      state.vkAdminGroupsSelected[instanceId] = groups.map(group => String(group.id));
+    }
+    renderInstances();
+    if (!silent) toast(`Загружено групп: ${groups.length}`);
+  } finally {
+    delete state.vkAdminGroupsLoading[instanceId];
+  }
+}
+async function startVkAuth(instanceId){
+  const res = await api('/api/auth/vk/start',{method:'POST', body:JSON.stringify({instance_id: instanceId})});
+  if(!res.authorize_url) throw new Error('VK authorize URL not returned');
+  const popup = window.open(res.authorize_url, '_blank', 'popup,width=760,height=760');
+  if(!popup){
+    window.location.href = res.authorize_url;
+    return;
+  }
+  popup.focus?.();
+  toast('Открыл окно VK авторизации');
+}
+async function startVkGroupsScopeAuth(instanceId){
+  const res = await api('/api/auth/vk/groups-scope-start',{method:'POST', body:JSON.stringify({instance_id: instanceId})});
+  if(!res.authorize_url) throw new Error('VK groups scope authorize URL not returned');
+  const popup = window.open(res.authorize_url, '_blank', 'popup,width=760,height=760');
+  if(!popup){
+    window.location.href = res.authorize_url;
+    return;
+  }
+  popup.focus?.();
+  toast('Открыл окно VK groups authorization');
+}
+async function startVkGroupsAuth(instanceId){
+  const instance = state.instances.find(x => x.id === instanceId);
+  const selected = getSelectedVkGroupIds(instanceId);
+  const fallbackGroupId = String(instance?.config?.group_id || '').trim();
+  const groupIds = selected.length ? selected.join(',') : fallbackGroupId;
+  if (!groupIds) throw new Error('Нужно выбрать хотя бы одну группу или указать VK Group ID в настройках');
+  const res = await api('/api/auth/vk/groups-auth-start',{method:'POST', body:JSON.stringify({instance_id: instanceId, group_ids: groupIds})});
+  if(!res.authorize_url) throw new Error('VK group authorize URL not returned');
+  const popup = window.open(res.authorize_url, '_blank', 'popup,width=760,height=760');
+  if(!popup){
+    window.location.href = res.authorize_url;
+    return;
+  }
+  popup.focus?.();
+  toast('Открыл окно VK group authorization');
+}
 function fillRouteOptions(){ const opts=(state.instances||[]).map(x=>`<option value="${esc(x.id)}">${esc(x.display_name)} (${esc(x.id)})</option>`).join(''); $('[name="source_adapter_id"]').innerHTML=opts; $('[name="target_adapter_id"]').innerHTML=opts }
 function routePolicyStatus(route){ if(!route.has_policy) return '<span class="warning">нет настроек синхронизации</span>'; if(route.policy_enabled) return '<span class="good">настроено</span>'; return '<span class="warning">политика выключена</span>'; }
 function routeDetail(route){
@@ -80,7 +268,7 @@ function routeDetail(route){
   const targetResolved = route.target_chat_canonical && route.target_chat_canonical !== route.target_chat_id
     ? ` · resolved: <span class="mono">${esc(route.target_chat_canonical)}</span>`
     : '';
-  return `<div><div class="muted" style="margin-bottom:10px">Настройки маршрута. Здесь можно поменять и адресацию, и политику синхронизации.</div><form class="route-policy-form" data-id="${esc(route.id)}"><div class="row"><label><span class="label">Откуда</span><select name="source_adapter_id">${state.instances.map(x=>`<option value="${esc(x.id)}" ${x.id===route.source_adapter_id?'selected':''}>${esc(x.id)} (${esc(x.platform)})</option>`).join('')}</select></label><label><span class="label">Источник: chat id / username / ссылка</span><input name="source_chat_id" value="${esc(route.source_chat_id)}"><span class="help">Можно указать числовой chat id, @username или ссылку.</span><span class="help">raw: <span class="mono">${esc(route.source_chat_id || '')}</span>${sourceResolved}</span></label><label><span class="label">Куда</span><select name="target_adapter_id">${state.instances.map(x=>`<option value="${esc(x.id)}" ${x.id===route.target_adapter_id?'selected':''}>${esc(x.id)} (${esc(x.platform)})</option>`).join('')}</select></label><label><span class="label">Назначение: chat id / username / ссылка</span><input name="target_chat_id" value="${esc(route.target_chat_id)}"><span class="help">Можно указать числовой chat id, @username или ссылку.</span><span class="help">raw: <span class="mono">${esc(route.target_chat_id || '')}</span>${targetResolved}</span></label></div><div class="row4"><label><span class="label">Маршрут</span><select name="has_policy"><option value="true" ${(route.has_policy && route.policy_enabled)?'selected':''}>включён</option><option value="false" ${(!route.has_policy || !route.policy_enabled)?'selected':''}>выключен</option></select><span class="help">Если выключено, этот маршрут не создаёт jobs.</span></label><label><span class="label">Repost mode</span><select name="repost_mode"><option value="ignore" ${route.repost_mode==='ignore'?'selected':''}>ignore</option><option value="flatten" ${route.repost_mode==='flatten'?'selected':''}>flatten</option><option value="preserve_reference" ${route.repost_mode==='preserve_reference'?'selected':''}>preserve_reference</option></select></label><label><span class="label">Max images</span><input name="max_images" value="${esc(route.content_policy?.max_images ?? '')}"></label></div><div class="row4"><label><input class="checkbox" type="checkbox" name="allow_text" ${checked(route.content_policy?.allow_text ?? true)}> Текст</label><label><input class="checkbox" type="checkbox" name="allow_images" ${checked(route.content_policy?.allow_images ?? true)}> Картинки</label><label><input class="checkbox" type="checkbox" name="allow_video" ${checked(route.content_policy?.allow_video ?? true)}> Видео</label><label><input class="checkbox" type="checkbox" name="allow_audio" ${checked(route.content_policy?.allow_audio ?? true)}> Аудио</label><label><input class="checkbox" type="checkbox" name="allow_documents" ${checked(route.content_policy?.allow_documents ?? false)}> Документы</label><label><input class="checkbox" type="checkbox" name="allow_reposts" ${checked(route.content_policy?.allow_reposts ?? false)}> Репосты</label><label><input class="checkbox" type="checkbox" name="drop_unsupported_media" ${checked(route.content_policy?.drop_unsupported_media ?? true)}> Отбрасывать неподдерживаемые медиа</label></div><label><span class="label">Text template</span><textarea name="copy_text_template" placeholder="{text}">${esc(route.copy_text_template || '')}</textarea><span class="help">Можно использовать {text}. Пример: {text}
+  return `<div><div class="muted" style="margin-bottom:10px">Настройки маршрута. Здесь можно поменять и адресацию, и политику синхронизации.</div><form class="route-policy-form" data-id="${esc(route.id)}"><div class="row"><label><span class="label">Откуда</span><select name="source_adapter_id">${state.instances.map(x=>`<option value="${esc(x.id)}" ${x.id===route.source_adapter_id?'selected':''}>${esc(x.id)} (${esc(x.platform)})</option>`).join('')}</select></label><label><span class="label-row"><span class="label">Источник: chat id / username / ссылка</span>${helpButton('route.source_chat')}</span><input name="source_chat_id" value="${esc(route.source_chat_id)}"><span class="help">Можно указать числовой chat id, @username или ссылку.</span><span class="help">raw: <span class="mono">${esc(route.source_chat_id || '')}</span>${sourceResolved}</span></label><label><span class="label">Куда</span><select name="target_adapter_id">${state.instances.map(x=>`<option value="${esc(x.id)}" ${x.id===route.target_adapter_id?'selected':''}>${esc(x.id)} (${esc(x.platform)})</option>`).join('')}</select></label><label><span class="label-row"><span class="label">Назначение: chat id / username / ссылка</span>${helpButton('route.target_chat')}</span><input name="target_chat_id" value="${esc(route.target_chat_id)}"><span class="help">Можно указать числовой chat id, @username или ссылку.</span><span class="help">raw: <span class="mono">${esc(route.target_chat_id || '')}</span>${targetResolved}</span></label></div><div class="row4"><label><span class="label-row"><span class="label">Маршрут</span>${helpButton('route.enabled')}</span><select name="has_policy"><option value="true" ${(route.has_policy && route.policy_enabled)?'selected':''}>включён</option><option value="false" ${(!route.has_policy || !route.policy_enabled)?'selected':''}>выключен</option></select><span class="help">Если выключено, этот маршрут не создаёт jobs.</span></label><label><span class="label">Repost mode</span><select name="repost_mode"><option value="ignore" ${route.repost_mode==='ignore'?'selected':''}>ignore</option><option value="flatten" ${route.repost_mode==='flatten'?'selected':''}>flatten</option><option value="preserve_reference" ${route.repost_mode==='preserve_reference'?'selected':''}>preserve_reference</option></select></label><label><span class="label">Max images</span><input name="max_images" value="${esc(route.content_policy?.max_images ?? '')}"></label></div><div class="row4"><label><input class="checkbox" type="checkbox" name="allow_text" ${checked(route.content_policy?.allow_text ?? true)}> Текст</label><label><input class="checkbox" type="checkbox" name="allow_images" ${checked(route.content_policy?.allow_images ?? true)}> Картинки</label><label><input class="checkbox" type="checkbox" name="allow_video" ${checked(route.content_policy?.allow_video ?? true)}> Видео</label><label><input class="checkbox" type="checkbox" name="allow_audio" ${checked(route.content_policy?.allow_audio ?? true)}> Аудио</label><label><input class="checkbox" type="checkbox" name="allow_documents" ${checked(route.content_policy?.allow_documents ?? false)}> Документы</label><label><input class="checkbox" type="checkbox" name="allow_reposts" ${checked(route.content_policy?.allow_reposts ?? false)}> Репосты</label><label><input class="checkbox" type="checkbox" name="drop_unsupported_media" ${checked(route.content_policy?.drop_unsupported_media ?? true)}> Отбрасывать неподдерживаемые медиа</label></div><label><span class="label">Text template</span><textarea name="copy_text_template" placeholder="{text}">${esc(route.copy_text_template || '')}</textarea><span class="help">Можно использовать {text}. Пример: {text}
 
 Источник: Telegram</span></label><div class="inline"><button class="btn small" type="submit">Сохранить настройки маршрута</button><button class="btn danger small route-delete-inline" type="button" data-id="${esc(route.id)}">Удалить маршрут</button></div></form></div>`;
 }
@@ -91,7 +279,7 @@ function routeEndpointDisplay(adapterId, rawValue, canonicalValue){
   }
   return raw;
 }
-function renderRoutes(){ const rows=(state.routes||[]).map(r=>{ const expanded = state.expandedRouteId===r.id; return `<tr class="route-head" data-route-id="${esc(r.id)}"><td>${esc(r.id)}</td><td>${routeEndpointDisplay(r.source_adapter_id, r.source_chat_id, r.source_chat_canonical)}</td><td>${routeEndpointDisplay(r.target_adapter_id, r.target_chat_id, r.target_chat_canonical)}</td><td>${routePolicyStatus(r)}</td></tr><tr class="route-expanded ${expanded?'':'hidden'}" data-route-detail="${esc(r.id)}"><td colspan="4">${routeDetail(r)}</td></tr>`; }).join(''); $('#routes').innerHTML=`<table><thead><tr><th>маршрут</th><th>откуда</th><th>куда</th><th>состояние</th></tr></thead><tbody>${rows}</tbody></table>`; $$('[data-route-id]').forEach(tr=>tr.onclick=()=>{state.expandedRouteId=state.expandedRouteId===tr.dataset.routeId?null:tr.dataset.routeId; renderRoutes();}); $$('.route-policy-form').forEach(f=>f.onsubmit=saveRoutePolicy); $$('.route-delete-inline').forEach(b=>b.onclick=async(ev)=>{ev.stopPropagation(); const id=b.dataset.id; await api('/routes/'+encodeURIComponent(id),{method:'DELETE'}); toast('Route deleted'); if(state.expandedRouteId===id) state.expandedRouteId=null; await refreshAll();}); }
+function renderRoutes(){ const rows=(state.routes||[]).map(r=>{ const expanded = state.expandedRouteId===r.id; return `<tr class="route-head" data-route-id="${esc(r.id)}"><td>${esc(r.id)}</td><td>${routeEndpointDisplay(r.source_adapter_id, r.source_chat_id, r.source_chat_canonical)}</td><td>${routeEndpointDisplay(r.target_adapter_id, r.target_chat_id, r.target_chat_canonical)}</td><td>${routePolicyStatus(r)}</td></tr><tr class="route-expanded ${expanded?'':'hidden'}" data-route-detail="${esc(r.id)}"><td colspan="4">${routeDetail(r)}</td></tr>`; }).join(''); $('#routes').innerHTML=`<table><thead><tr><th>маршрут</th><th>откуда</th><th>куда</th><th>состояние</th></tr></thead><tbody>${rows}</tbody></table>`; $$('[data-route-id]').forEach(tr=>tr.onclick=()=>{state.expandedRouteId=state.expandedRouteId===tr.dataset.routeId?null:tr.dataset.routeId; renderRoutes();}); $$('.route-policy-form').forEach(f=>f.onsubmit=saveRoutePolicy); attachHelpButtons($('#routes')); $$('.route-delete-inline').forEach(b=>b.onclick=async(ev)=>{ev.stopPropagation(); const id=b.dataset.id; await api('/routes/'+encodeURIComponent(id),{method:'DELETE'}); toast('Route deleted'); if(state.expandedRouteId===id) state.expandedRouteId=null; await refreshAll();}); }
 async function saveRoute(e){ e.preventDefault(); const f=e.currentTarget; const src=state.instances.find(x=>x.id===f.source_adapter_id.value); const dst=state.instances.find(x=>x.id===f.target_adapter_id.value); const created = await api('/routes',{method:'POST', body:JSON.stringify({id:null,source_adapter_id:f.source_adapter_id.value,source_platform:src.platform,source_chat_id:f.source_chat_id.value,target_adapter_id:f.target_adapter_id.value,target_platform:dst.platform,target_chat_id:f.target_chat_id.value,enabled:true,has_policy:true,policy_enabled:true,content_policy:{allow_text:true,allow_images:true,allow_video:true,allow_audio:false,allow_documents:false,allow_reposts:false,drop_unsupported_media:true},repost_mode:'ignore',copy_text_template:null})}); toast('Маршрут создан'); await refreshAll(); state.expandedRouteId=created.id; renderRoutes(); }
 async function saveRoutePolicy(e){ e.preventDefault(); const form=e.currentTarget; const route = state.routes.find(x=>x.id===form.dataset.id); if(!route) return; const routeEnabled = bool(form.has_policy.value); const src=state.instances.find(x=>x.id===form.source_adapter_id.value); const dst=state.instances.find(x=>x.id===form.target_adapter_id.value); await api('/routes',{method:'POST', body:JSON.stringify({...route, source_adapter_id: form.source_adapter_id.value, source_platform: src.platform, source_chat_id: form.source_chat_id.value, target_adapter_id: form.target_adapter_id.value, target_platform: dst.platform, target_chat_id: form.target_chat_id.value, enabled: routeEnabled, has_policy: routeEnabled, policy_enabled: routeEnabled, repost_mode: form.repost_mode.value, copy_text_template: form.copy_text_template.value || null, content_policy: { allow_text: form.allow_text.checked, allow_images: form.allow_images.checked, allow_video: form.allow_video.checked, allow_audio: form.allow_audio.checked, allow_documents: form.allow_documents.checked, allow_reposts: form.allow_reposts.checked, max_images: form.max_images.value===''?null:Number(form.max_images.value), max_video_size_mb: route.content_policy?.max_video_size_mb ?? null, max_audio_size_mb: route.content_policy?.max_audio_size_mb ?? null, drop_unsupported_media: form.drop_unsupported_media.checked }})}); toast('Настройки маршрута сохранены'); await refreshAll(); state.expandedRouteId=form.dataset.id; renderRoutes(); }
 function renderJobs(){ $('#jobs').innerHTML='<table><thead><tr><th>id</th><th>status</th><th>target</th><th>origin</th><th>attempts</th><th>error</th><th></th></tr></thead><tbody>'+(state.jobs||[]).map(j=>`<tr><td>${j.id}</td><td>${esc(j.status)}</td><td>${esc(j.target_adapter_id||j.target_platform)} / <span class="mono">${esc(j.target_chat_id)}</span></td><td>${esc(j.origin_adapter_id||j.origin_platform)} / <span class="mono">${esc(j.origin_chat_id)}:${esc(j.origin_message_id)}</span></td><td>${j.attempts}/${j.max_attempts}</td><td class="mono">${esc(j.last_error||'')}</td><td>${['dead_letter','retrying'].includes(j.status)?`<button class="btn secondary" onclick="requeueJob(${j.id})">requeue</button>`:''}</td></tr>`).join('')+'</tbody></table>' }
@@ -100,6 +288,6 @@ async function requeueJob(id){ await api('/api/dashboard/jobs/'+id+'/requeue',{m
 function renderDiagnostics(){ const runtime=state.diagnostics?.adapter_runtime_statuses||[]; const routeRows=state.diagnostics?.routes||[]; const cards = runtime.map(r=>`<div class="card" style="margin-bottom:12px"><div class="inline" style="justify-content:space-between"><strong>${esc(r.instance_id)} <span class="pill">${esc(r.platform)}</span></strong><span class="muted">${esc(r.status||'unknown')} / ${r.connected?'connected':'not connected'}</span></div><div class="muted">events: ${r.events_received||0}, ignored: ${r.events_ignored||0}, published: ${r.posts_published||0}</div><div class="muted">last event: ${esc(r.last_event_at||'—')}</div><div class="muted">last error: ${esc(r.last_error||'—')}</div><details style="margin-top:8px"><summary>Последние логи</summary><div class="mono">${(r.logs||[]).map(x=>`${esc(x.ts||'')} ${esc(x.message||'')} ${x.extra?esc(JSON.stringify(x.extra)):''}`).join('<br>')||'пусто'}</div></details><details style="margin-top:8px"><summary>Последние ошибки</summary><div class="mono">${(r.errors||[]).map(x=>`${esc(x.ts||'')} ${esc(x.code||'')} ${esc(x.message||'')}`).join('<br>')||'пусто'}</div></details></div>`).join(''); const routeTable=`<table><thead><tr><th>route</th><th>source</th><th>target</th><th>sync</th></tr></thead><tbody>${routeRows.map(r=>`<tr><td>${esc(r.id)}</td><td>${esc(r.source_adapter_id)} / <span class="mono">${esc(r.source_chat_id)}</span></td><td>${esc(r.target_adapter_id)} / <span class="mono">${esc(r.target_chat_id)}</span></td><td>${r.has_policy&&r.policy_enabled?'<span class="good">on</span>':'<span class="warning">off</span>'}</td></tr>`).join('')}</tbody></table>`; const globalLogs=(state.diagnostics?.global_logs||[]).map(x=>`${esc(x.ts||'')} ${esc(x.level||'')} ${esc(x.instance_id||'')} ${esc(x.message||'')} ${x.extra?esc(JSON.stringify(x.extra)):''}`).join('<br>') || 'пусто'; $('#diagnosticsPanel').innerHTML = cards + '<div class="card"><h3>Глобальные логи</h3><div class="mono">'+globalLogs+'</div></div>' + '<div class="card"><h3>Маршруты</h3>'+routeTable+'</div>'; }
 
 async function refreshJobs(){ state.overview=await api('/api/dashboard/overview'); state.jobs=await api('/api/dashboard/jobs'); state.links=await api('/api/dashboard/message-links'); state.diagnostics=await api('/api/dashboard/diagnostics'); renderOverview(); renderJobs(); renderLinks(); renderDiagnostics(); }
-async function refreshAll(){ state.defs=await api('/api/adapter-definitions'); state.instances=await api('/api/adapter-instances'); state.overview=await api('/api/dashboard/overview'); state.routes=await api('/api/dashboard/routes'); state.jobs=await api('/api/dashboard/jobs'); state.links=await api('/api/dashboard/message-links'); state.diagnostics=await api('/api/dashboard/diagnostics'); renderDefinitionsSelect(); renderOverview(); renderInstances(); fillRouteOptions(); renderRoutes(); renderJobs(); renderLinks(); renderDiagnostics(); }
-$('#createInstanceBtn').onclick=createInstance; $('#routeForm').onsubmit=saveRoute; refreshAll().catch(e=>toast(e.message));
+async function refreshAll(){ const helpPayload=await api('/api/help/entries'); state.helpEntries=helpPayload.entries||[]; state.defs=await api('/api/adapter-definitions'); state.instances=await api('/api/adapter-instances'); state.overview=await api('/api/dashboard/overview'); state.routes=await api('/api/dashboard/routes'); state.jobs=await api('/api/dashboard/jobs'); state.links=await api('/api/dashboard/message-links'); state.diagnostics=await api('/api/dashboard/diagnostics'); renderDefinitionsSelect(); renderOverview(); renderInstances(); fillRouteOptions(); renderRoutes(); renderJobs(); renderLinks(); renderDiagnostics(); attachHelpButtons(document); }
+$('#helpCloseBtn').onclick=closeHelp; $('#helpBackdrop').onclick=(e)=>{ if(e.target.id==='helpBackdrop') closeHelp(); }; window.addEventListener('message', (event)=>{ const type=event?.data?.type; const instanceId=event?.data?.instance_id; if(type==='vk-auth-success' || type==='vk-groups-auth-success'){ refreshAll().then(()=>toast('VK успешно подключён')).catch(e=>toast(e.message)); return; } if(type==='vk-groups-scope-auth-success' && instanceId){ refreshAll().then(()=>loadVkAdminGroups(instanceId, {silent:true})).then(()=>toast('Список админ-групп загружен')).catch(e=>toast(e.message)); }}); $('#createInstanceBtn').onclick=createInstance; $('#routeForm').onsubmit=saveRoute; refreshAll().catch(e=>toast(e.message));
 </script></body></html>

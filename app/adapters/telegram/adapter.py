@@ -111,9 +111,16 @@ class TelegramAdapter(BaseAdapter):
         media_items = list(post.media)
         files: list[str] = []
         for item in media_items:
-            path = item.file_id or item.url
-            if path:
+            path = self._resolve_media_source(item)
+            if path is not None:
                 files.append(path)
+            else:
+                self._log_warning(
+                    "telegram publish skipped unresolved media item",
+                    media_type=item.type.value,
+                    file_id=item.file_id,
+                    url=item.url,
+                )
 
         self._log_info(f"telegram publish to chat_id={chat_id} normalized_target={target!r}")
         if files:
@@ -121,7 +128,7 @@ class TelegramAdapter(BaseAdapter):
                 entity=target,
                 file=files if len(files) > 1 else files[0],
                 caption=post.text or "",
-                force_document=False,
+                force_document=all(item.type == ContentType.DOCUMENT for item in media_items),
                 supports_streaming=any(item.type == ContentType.VIDEO for item in media_items),
             )
         else:
@@ -204,6 +211,19 @@ class TelegramAdapter(BaseAdapter):
     async def supports_feature(self, feature: str) -> bool:
         supported = {"text", "image", "video", "audio", "document", "repost"}
         return feature in supported
+
+    def _resolve_media_source(self, item: MediaItem) -> str | None:
+        for candidate in (item.url, item.file_id):
+            if candidate is None:
+                continue
+            value = str(candidate).strip()
+            if not value:
+                continue
+            if value.startswith(("http://", "https://")):
+                return value
+            if Path(value).exists():
+                return value
+        return None
 
     async def _handle_new_message_event(self, event) -> None:
         if self._on_post is None:
