@@ -73,16 +73,17 @@ docker compose up
 
 Готово! Открой в браузере: **http://localhost:8000**
 
-![Dashboard](docs/images/dashboard-placeholder.png)
-*Web-интерфейс для управления синхронизацией*
-
 ### 📋 Настройка (3 шага в интерфейсе)
 
 #### Шаг 1️⃣ Добавь Telegram
 
-Открой http://localhost:8000 → "Добавить адаптер" → выбери Telegram
+Открой http://localhost:8000 → кнопка "➕ Добавить адаптер" → выбери "Telegram"
 
-![Add Telegram](docs/images/add-telegram-placeholder.png)
+В форме заполни:
+- **Display Name:** "Мой Telegram" (просто имя для себя)
+- **API ID:** твой номер
+- **API Hash:** скопируй из кабинета
+- **Bot Token:** (опционально) если хочешь бота
 
 Где взять данные:
 1. Перейди https://my.telegram.org/apps
@@ -92,9 +93,12 @@ docker compose up
 
 #### Шаг 2️⃣ Добавь VK
 
-http://localhost:8000 → "Добавить адаптер" → выбери VK
+Открой http://localhost:8000 → кнопка "➕ Добавить адаптер" → выбери "VK"
 
-![Add VK](docs/images/add-vk-placeholder.png)
+В форме заполни:
+- **Display Name:** "Моя VK" (имя для себя)
+- **VK Group ID:** ID твоей группы
+- **VK ID Client ID:** для OAuth входа
 
 Где взять данные:
 1. Перейди https://vk.com/dev
@@ -103,14 +107,19 @@ http://localhost:8000 → "Добавить адаптер" → выбери VK
 
 #### Шаг 3️⃣ Создай синхронизацию
 
-http://localhost:8000 → "Новое правило" → выбери:
-- Откуда: Telegram
-- Куда: VK
-- Какой контент: текст ✅ фото ✅ видео ✅
+Открой http://localhost:8000 → кнопка "➕ Новое правило синхронизации"
 
-![Create Rule](docs/images/create-rule-placeholder.png)
+Выбери:
+- **Откуда:** Telegram (выбери инстанс "Мой Telegram")
+- **Куда:** VK (выбери инстанс "Моя VK")
+- **Контент:** поставь галочки что нужно:
+  - ✅ Текст (всегда копируется)
+  - ✅ Фото (загружаются в VK)
+  - ✅ Видео (загружаются в VK)
 
-Теперь все посты из Telegram будут автоматически публиковаться в VK! ✅
+Нажми **"Сохранить"** → готово!
+
+Теперь все посты из Telegram будут автоматически публиковаться в VK! 🎉
 
 ### ⚠️ Важные ограничения платформ
 
@@ -236,14 +245,17 @@ docker compose up
 
 Done! Open in browser: **http://localhost:8000**
 
-![Dashboard](docs/images/dashboard-placeholder.png)
-*Web interface for managing sync*
-
 ### 📋 Setup (3 steps in interface)
 
 #### Step 1️⃣ Add Telegram
 
-Open http://localhost:8000 → "Add adapter" → select Telegram
+Open http://localhost:8000 → click "➕ Add adapter" → select "Telegram"
+
+Fill in the form:
+- **Display Name:** "My Telegram" (name for yourself)
+- **API ID:** your number
+- **API Hash:** copy from developer cabinet
+- **Bot Token:** (optional) if you want a bot
 
 Get credentials:
 1. Go to https://my.telegram.org/apps
@@ -253,7 +265,12 @@ Get credentials:
 
 #### Step 2️⃣ Add VK
 
-Open http://localhost:8000 → "Add adapter" → select VK
+Open http://localhost:8000 → click "➕ Add adapter" → select "VK"
+
+Fill in the form:
+- **Display Name:** "My VK" (name for yourself)
+- **VK Group ID:** your group ID
+- **VK ID Client ID:** for OAuth login
 
 Get credentials:
 1. Go to https://vk.com/dev
@@ -262,12 +279,19 @@ Get credentials:
 
 #### Step 3️⃣ Create Sync Rule
 
-Open http://localhost:8000 → "New rule" → select:
-- From: Telegram
-- To: VK
-- Content: text ✅ photos ✅ videos ✅
+Open http://localhost:8000 → click "➕ New sync rule"
 
-Now all posts from Telegram automatically publish to VK! ✅
+Select:
+- **From:** Telegram (select "My Telegram")
+- **To:** VK (select "My VK")
+- **Content:** check what you need:
+  - ✅ Text (always copied)
+  - ✅ Photos (uploaded to VK)
+  - ✅ Videos (uploaded to VK)
+
+Click **"Save"** → done!
+
+Now all posts from Telegram automatically publish to VK! 🎉
 
 ### ⚠️ Platform Limitations
 
