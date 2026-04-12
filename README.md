@@ -1,6 +1,9 @@
 # AutoPost Sync
 
-> **Синхронизируй посты между Telegram, VK и MAX одной командой**
+> **Автоматически копируй посты между Telegram, VK и MAX через удобный интерфейс**
+
+![GitHub License](https://img.shields.io/badge/License-MIT-blue)
+![Python](https://img.shields.io/badge/Python-3.11+-green)
 
 [🇷🇺 Русский](#русский) | [🇬🇧 English](#english)
 
@@ -8,348 +11,318 @@
 
 ## 🇷🇺 Русский
 
-### Что это?
+### 💡 Что это?
 
-**AutoPost Sync** — это сервис, который автоматически копирует посты между платформами:
+**AutoPost Sync** — это приложение для автоматической синхронизации постов между социальными платформами.
 
-- Напишешь пост в **Telegram** → он появится в **VK**
-- Отправишь сообщение в **VK** → оно попадёт в **MAX**
-- И всё в обе стороны одновременно
+**Примеры использования:**
 
-### Как это работает?
+📱 **Для контент-мейкеров:**
+- Опубликовал пост в Telegram → он сам появится в VK и MAX
+- Экономишь время на ручное копирование постов
+- Один контент — все платформы сразу
+
+📊 **Для сообществ:**
+- Синхронизируй новости с основного канала на все соцсети
+- Управляй всеми платформами с одного места
+- Не пропусти ничего
+
+🤖 **Для ботов:**
+- Настрой бота один раз
+- Он будет автоматически публиковать везде
+- Никакого кода не нужно писать
+
+### 🎯 Как это работает?
 
 ```
-Telegram канал
-    ↓
-Правило: "Копировать в VK"
-    ↓
-Маршрут: "Этот канал → ту группу VK"
-    ↓
-VK группа (пост готов)
+┌─────────────────┐
+│  Твой пост в    │
+│   Telegram      │
+└────────┬────────┘
+         │
+    ↓ (автоматически)
+         │
+    ┌────▼────────────────────┐
+    │  AutoPost настроил      │
+    │  "Копировать в VK, MAX" │
+    └────┬────────────────────┘
+         │
+    ├─→ VK группа
+    ├─→ MAX чат
+    └─→ Другие платформы
 ```
 
-### Основные возможности
+### ✨ Основные преимущества
 
-✅ **Поддерживаемые платформы:**
-- Telegram (текст, фото, видео, документы)
-- VK (посты, фото, видео)
-- MAX (сообщения, медиа)
+✅ **Просто в использовании** — интуитивный веб-интерфейс, без команд  
+✅ **Все платформы** — Telegram, VK, MAX в одном месте  
+✅ **Автоматизация** — один раз настроил, потом работает само  
+✅ **Медиа поддержка** — фото, видео, документы копируются автоматически  
+✅ **Умная защита** — не создаёт дубли, блокирует циклы  
+✅ **Безопасно** — все токены зашифрованы в базе  
 
-✅ **Основной функционал:**
-- Автоматическая синхронизация постов
-- Поддержка медиа (фото, видео, документы)
-- Защита от дублей и циклов
-- Задачи с автоматическими повторами
-- Шифрование токенов в базе
-
-✅ **Разработка:**
-- REST API
-- PostgreSQL хранилище
-- Фоновый воркер для отправки
-- Логирование и мониторинг
-
-### Быстрый старт (5 минут)
+### 🚀 Быстрый старт (2 команды)
 
 ```bash
-# 1. Установи зависимости
-git clone https://github.com/yourusername/autopost_sync.git
-cd autopost_sync
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+# 1. Скачай проект
+git clone https://github.com/yourusername/autopost_sync.git && cd autopost_sync
 
-# 2. Запусти базу
-docker compose up -d db
-
-# 3. Инициализируй БД
-alembic upgrade head
-
-# 4. Запусти сервер
-uvicorn app.main:app --reload
+# 2. Запусти (Docker автоматически скачает всё нужное)
+docker compose up
 ```
 
-Готово! Открой http://127.0.0.1:8000/docs
+Готово! Открой в браузере: **http://localhost:8000**
 
-### Настройка первого адаптера
+![Dashboard](docs/images/dashboard-placeholder.png)
+*Web-интерфейс для управления синхронизацией*
 
-```bash
-# Telegram
-curl -X POST http://localhost:8000/api/adapter-instances \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "adapter_key": "telegram",
-    "display_name": "Мой Telegram",
-    "config": {"api_id": 12345678, "receive_updates": true},
-    "secrets": {"api_hash": "your_hash", "bot_token": "your_token"}
-  }'
-```
+### 📋 Настройка (3 шага в интерфейсе)
 
-### Где взять учётные данные?
+#### Шаг 1️⃣ Добавь Telegram
+
+Открой http://localhost:8000 → "Добавить адаптер" → выбери Telegram
+
+![Add Telegram](docs/images/add-telegram-placeholder.png)
+
+Где взять данные:
+1. Перейди https://my.telegram.org/apps
+2. Создай приложение
+3. Скопируй **API ID** и **API Hash** в поле
+4. (Опционально) Для бота добавь токен от @BotFather
+
+#### Шаг 2️⃣ Добавь VK
+
+http://localhost:8000 → "Добавить адаптер" → выбери VK
+
+![Add VK](docs/images/add-vk-placeholder.png)
+
+Где взять данные:
+1. Перейди https://vk.com/dev
+2. Создай приложение
+3. Скопируй ID приложения
+
+#### Шаг 3️⃣ Создай синхронизацию
+
+http://localhost:8000 → "Новое правило" → выбери:
+- Откуда: Telegram
+- Куда: VK
+- Какой контент: текст ✅ фото ✅ видео ✅
+
+![Create Rule](docs/images/create-rule-placeholder.png)
+
+Теперь все посты из Telegram будут автоматически публиковаться в VK! ✅
+
+### ⚠️ Важные ограничения платформ
 
 **Telegram:**
-- Перейди на https://my.telegram.org/apps
-- Создай приложение
-- Скопируй API ID и API Hash
+- ✅ Полная поддержка
+- Нужно API ID и API Hash (берётся в кабинете разработчика)
 
 **VK:**
-- Перейди на https://vk.com/dev
-- Создай приложение
-- Скопируй ID приложения
+- ✅ Полная поддержка
+- Нужна обычная ссылка на группу/сообщество
+- Токен берётся из кабинета разработчика
 
 **MAX:**
-- Перейди на https://max.im
-- Создай бота
-- Скопируй токен бота
+- ⚠️ **Важно:** Доступно только для юридических лиц (ИП, ООО и т.д.)
+- Требуется быть резидентом РФ
+- Нужно пройти верификацию в [dev.max.ru](https://dev.max.ru/docs/chatbots/bots-coding/prepare)
+- Подробнее: https://dev.max.ru/docs/chatbots/bots-coding/prepare
 
-### Примеры использования
+### ❓ Частые вопросы
 
-**Создать синхронизацию Telegram → VK:**
+**Нужно ли мне быть программистом?**
+Нет! Весь интерфейс — веб-приложение с кнопками и формами. Никакого кода писать не нужно.
 
-```bash
-# 1. Создай правило
-curl -X POST http://localhost:8000/api/sync-rules \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "source_platform": "telegram",
-    "target_platform": "vk",
-    "enabled": true,
-    "content_policy": {
-      "allow_text": true,
-      "allow_images": true,
-      "allow_video": true
-    },
-    "copy_text_template": "{text}"
-  }'
+**Что если я что-то неправильно настроил?**
+Можешь всегда переделать в интерфейсе. Все настройки хранятся в базе и легко редактируются.
 
-# 2. Создай маршрут (привяжи конкретный канал к конкретной группе)
-curl -X POST http://localhost:8000/api/routes \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "source_adapter_instance_id": "telegram-main",
-    "source_chat_id": "123456789",
-    "target_adapter_instance_id": "vk-main",
-    "target_chat_id": "237416141",
-    "enabled": true
-  }'
-```
+**Где мои токены и пароли?**
+Все токены зашифрованы в базе данных. Никто их не видит и не сохраняет.
 
-Готово! Теперь все посты из Telegram-канала будут автоматически публиковаться в VK-группе.
+**Что будет если выключить сервер?**
+Когда ты его снова включишь, он продолжит с того же места. Никакие посты не потеряются.
 
-### Структура проекта
+**Это бесплатно?**
+Да, это Open Source проект под лицензией MIT.
 
-```
-autopost_sync/
-├── app/
-│   ├── adapters/           # Интеграции с платформами
-│   │   ├── telegram/       # Telegram (Telethon)
-│   │   ├── vk/             # VK (VK API)
-│   │   └── max/            # MAX (MAX Bot API)
-│   ├── api/                # REST API endpoints
-│   ├── db/                 # Модели базы данных
-│   ├── domain/             # Доменные модели
-│   ├── repositories/       # Работа с БД
-│   ├── services/           # Бизнес-логика
-│   └── workers/            # Фоновые задачи
-├── docs/                   # Подробная документация
-├── tests/                  # Тесты
-└── docker-compose.yml      # PostgreSQL для разработки
-```
+### 📚 Полная документация
 
-### Полная документация
+Нужна помощь? Смотри подробные гайды:
 
-- 📖 [Установка и настройка](docs/INSTALLATION.md)
-- 🏗️ [Архитектура системы](docs/ARCHITECTURE.md)
-- 🔌 [Как работают адаптеры](docs/CONTRIBUTING.md#adding-a-new-adapter)
-- 📡 [REST API справочник](docs/API.md)
-- 🚀 [Быстрый старт](docs/QUICKSTART.md)
-- 💡 [FAQ и примеры](docs/README.md)
+- 🚀 [Детальный гайд по установке](docs/INSTALLATION.md) — для разных ОС и серверов
+- 🔌 [Гайд для каждой платформы](docs/README.md) — специфика Telegram, VK, MAX
+- ❓ [FAQ и примеры](docs/README.md) — ответы на частые вопросы
+- 👨‍💻 [Для разработчиков](docs/ARCHITECTURE.md) — как работает изнутри
 
-Для расширенной настройки каждой платформы смотри:
-- [Telegram адаптер](app/adapters/telegram/README.md)
-- [VK адаптер](app/adapters/vk/README.md)
-- [MAX адаптер](app/adapters/max/README.md)
+Для расширенной настройки каждой платформы:
+- [Telegram](app/adapters/telegram/README.md)
+- [VK](app/adapters/vk/README.md)
+- [MAX](app/adapters/max/README.md)
 
-### Требования
+### 💻 Требования к серверу
 
-- Python 3.11+
-- PostgreSQL 12+
-- Docker (опционально)
+- **Минимум:** 2GB RAM, 10GB дискового пространства
+- **ОС:** Linux, macOS или Windows с Docker
+- **Браузер:** Chrome, Firefox, Safari, Edge (любой современный)
 
-### Лицензия
+### 📄 Лицензия
 
-MIT License
+MIT License — используй как хочешь, даже в коммерческих целях.
 
 ---
 
 ## 🇬🇧 English
 
-### What is this?
+### 💡 What is this?
 
-**AutoPost Sync** is a service that automatically copies posts between platforms:
+**AutoPost Sync** is an app for automatic synchronization of posts between social media platforms.
 
-- Write a post in **Telegram** → it appears in **VK**
-- Send a message in **VK** → it goes to **MAX**
-- Works in both directions simultaneously
+**Use cases:**
 
-### How it works
+📱 **For content creators:**
+- Post once in Telegram → it appears automatically in VK and MAX
+- Save time on manual copying
+- One content → all platforms at once
+
+📊 **For communities:**
+- Sync news from main channel to all social media
+- Manage all platforms from one place
+- Never miss anything
+
+🤖 **For bots:**
+- Set up bot once
+- It will automatically publish everywhere
+- No coding needed
+
+### 🎯 How it works?
 
 ```
-Telegram channel
-    ↓
-Rule: "Copy to VK"
-    ↓
-Route: "This channel → that VK group"
-    ↓
-VK group (post ready)
+┌─────────────────┐
+│  Your post in   │
+│   Telegram      │
+└────────┬────────┘
+         │
+    ↓ (automatically)
+         │
+    ┌────▼────────────────────┐
+    │  AutoPost configured    │
+    │  "Copy to VK, MAX"      │
+    └────┬────────────────────┘
+         │
+    ├─→ VK group
+    ├─→ MAX chat
+    └─→ Other platforms
 ```
 
-### Key Features
+### ✨ Key Features
 
-✅ **Supported platforms:**
-- Telegram (text, photos, videos, documents)
-- VK (posts, photos, videos)
-- MAX (messages, media)
+✅ **Easy to use** — web interface with buttons and forms, no commands  
+✅ **All platforms** — Telegram, VK, MAX in one place  
+✅ **Automation** — set once, it works by itself  
+✅ **Media support** — photos, videos, documents copy automatically  
+✅ **Smart protection** — no duplicates, blocks loops  
+✅ **Secure** — all tokens encrypted in database  
 
-✅ **Core functionality:**
-- Automatic post synchronization
-- Media support (photos, videos, documents)
-- Duplicate and loop protection
-- Automatic retry with backoff
-- Encrypted token storage
-
-✅ **For developers:**
-- REST API
-- PostgreSQL storage
-- Background worker
-- Logging and monitoring
-
-### Quick Start (5 minutes)
+### 🚀 Quick Start (2 commands)
 
 ```bash
-# 1. Install dependencies
-git clone https://github.com/yourusername/autopost_sync.git
-cd autopost_sync
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+# 1. Download the project
+git clone https://github.com/yourusername/autopost_sync.git && cd autopost_sync
 
-# 2. Start database
-docker compose up -d db
-
-# 3. Initialize database
-alembic upgrade head
-
-# 4. Start server
-uvicorn app.main:app --reload
+# 2. Run (Docker automatically downloads everything needed)
+docker compose up
 ```
 
-Done! Open http://127.0.0.1:8000/docs
+Done! Open in browser: **http://localhost:8000**
 
-### Configure First Adapter
+![Dashboard](docs/images/dashboard-placeholder.png)
+*Web interface for managing sync*
 
-```bash
-# Telegram
-curl -X POST http://localhost:8000/api/adapter-instances \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "adapter_key": "telegram",
-    "display_name": "My Telegram",
-    "config": {"api_id": 12345678, "receive_updates": true},
-    "secrets": {"api_hash": "your_hash", "bot_token": "your_token"}
-  }'
-```
+### 📋 Setup (3 steps in interface)
 
-### Where to get credentials?
+#### Step 1️⃣ Add Telegram
+
+Open http://localhost:8000 → "Add adapter" → select Telegram
+
+Get credentials:
+1. Go to https://my.telegram.org/apps
+2. Create an app
+3. Copy **API ID** and **API Hash**
+4. (Optional) Add bot token from @BotFather
+
+#### Step 2️⃣ Add VK
+
+Open http://localhost:8000 → "Add adapter" → select VK
+
+Get credentials:
+1. Go to https://vk.com/dev
+2. Create an app
+3. Copy App ID
+
+#### Step 3️⃣ Create Sync Rule
+
+Open http://localhost:8000 → "New rule" → select:
+- From: Telegram
+- To: VK
+- Content: text ✅ photos ✅ videos ✅
+
+Now all posts from Telegram automatically publish to VK! ✅
+
+### ⚠️ Platform Limitations
 
 **Telegram:**
-- Go to https://my.telegram.org/apps
-- Create an app
-- Copy API ID and API Hash
+- ✅ Full support
+- Need API ID and API Hash (from developer cabinet)
 
 **VK:**
-- Go to https://vk.com/dev
-- Create an app
-- Copy App ID
+- ✅ Full support
+- Need regular link to group/community
+- Token from developer cabinet
 
 **MAX:**
-- Go to https://max.im
-- Create a bot
-- Copy bot token
+- ⚠️ **Important:** Available only for legal entities (LLC, self-employed, etc.)
+- Must be a resident of Russia
+- Verification required at [dev.max.ru](https://dev.max.ru/docs/chatbots/bots-coding/prepare)
+- Details: https://dev.max.ru/docs/chatbots/bots-coding/prepare
 
-### Usage Examples
+### ❓ FAQ
 
-**Sync Telegram → VK:**
+**Do I need to be a programmer?**
+No! The entire interface is a web app with buttons and forms. No coding required.
 
-```bash
-# 1. Create sync rule
-curl -X POST http://localhost:8000/api/sync-rules \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "source_platform": "telegram",
-    "target_platform": "vk",
-    "enabled": true,
-    "content_policy": {
-      "allow_text": true,
-      "allow_images": true,
-      "allow_video": true
-    },
-    "copy_text_template": "{text}"
-  }'
+**What if I configure something wrong?**
+You can always change it in the interface. All settings are stored in database and easily editable.
 
-# 2. Create route (bind specific channel to group)
-curl -X POST http://localhost:8000/api/routes \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "source_adapter_instance_id": "telegram-main",
-    "source_chat_id": "123456789",
-    "target_adapter_instance_id": "vk-main",
-    "target_chat_id": "237416141",
-    "enabled": true
-  }'
-```
+**Where are my tokens and passwords?**
+All tokens are encrypted in the database. No one sees or stores them.
 
-Done! All posts from Telegram channel will be automatically published to VK group.
+**What happens if I turn off the server?**
+When you turn it back on, it continues from where it left off. No posts are lost.
 
-### Project Structure
+**Is this free?**
+Yes, it's an Open Source project under MIT license.
 
-```
-autopost_sync/
-├── app/
-│   ├── adapters/           # Platform integrations
-│   │   ├── telegram/       # Telegram (Telethon)
-│   │   ├── vk/             # VK (VK API)
-│   │   └── max/            # MAX (MAX Bot API)
-│   ├── api/                # REST API endpoints
-│   ├── db/                 # Database models
-│   ├── domain/             # Domain models
-│   ├── repositories/       # Database access
-│   ├── services/           # Business logic
-│   └── workers/            # Background jobs
-├── docs/                   # Detailed documentation
-├── tests/                  # Tests
-└── docker-compose.yml      # PostgreSQL for development
-```
+### 📚 Full Documentation
 
-### Full Documentation
+Need help? Check detailed guides:
 
-- 📖 [Installation & Setup](docs/INSTALLATION.md)
-- 🏗️ [System Architecture](docs/ARCHITECTURE.md)
-- 🔌 [How Adapters Work](docs/CONTRIBUTING.md#adding-a-new-adapter)
-- 📡 [REST API Reference](docs/API.md)
-- 🚀 [Quick Start](docs/QUICKSTART.md)
-- 💡 [FAQ & Examples](docs/README.md)
+- 🚀 [Detailed installation guide](docs/INSTALLATION.md) — for different OS and servers
+- 🔌 [Guide for each platform](docs/README.md) — specifics for Telegram, VK, MAX
+- ❓ [FAQ and examples](docs/README.md) — answers to common questions
+- 👨‍💻 [For developers](docs/ARCHITECTURE.md) — how it works inside
 
 For platform-specific setup:
-- [Telegram Adapter](app/adapters/telegram/README.md)
-- [VK Adapter](app/adapters/vk/README.md)
-- [MAX Adapter](app/adapters/max/README.md)
+- [Telegram](app/adapters/telegram/README.md)
+- [VK](app/adapters/vk/README.md)
+- [MAX](app/adapters/max/README.md)
 
-### Requirements
+### 💻 Server Requirements
 
-- Python 3.11+
-- PostgreSQL 12+
-- Docker (optional)
+- **Minimum:** 2GB RAM, 10GB disk space
+- **OS:** Linux, macOS or Windows with Docker
+- **Browser:** Chrome, Firefox, Safari, Edge (any modern)
 
-### License
+### 📄 License
 
-MIT License
+MIT License — use however you want, even commercially.
