@@ -1,89 +1,113 @@
-# AutoPost Sync Beta
+# AutoPost Sync
 
-> В этой версии настройки адаптеров стали плагинными.
-> UI больше не хардкодит Telegram/VK/MAX-поля: формы рендерятся по схеме адаптера.
-> Можно создавать сколько угодно инстансов одного типа: например `telegram-main`, `telegram-backup`, `vk-news`, `max-bot`.
+> **Синхронизируй посты между Telegram, VK и MAX одной командой**
 
-## Что изменилось
-
-- вместо одной сущности `platform settings` теперь используются **adapter instances**;
-- каждый адаптер сам объявляет свои поля настроек (`simple` и `advanced`);
-- web UI рендерит форму автоматически по этим полям;
-- маршруты создаются **между инстансами адаптеров**, а не между жёстко зашитыми платформами;
-- webhook endpoint теперь имеет вид `/webhooks/{adapter_instance_id}`;
-- старые `platform_settings`-маршруты больше не являются основным способом настройки.
-
-## Ограничение текущей версии
-
-Это **breaking change**. Для существующей базы лучше поднять новую БД или добавить отдельную миграцию под новую модель. Автоматическую миграцию старой таблицы `platform_settings` в `adapter_instances` я в эту версию не включал.
+[🇷🇺 Русский](#русский) | [🇬🇧 English](#english)
 
 ---
 
-# autopost_sync beta
+## 🇷🇺 Русский
 
-Beta-версия сервиса синхронизации постов между платформами через единый внутренний формат `UnifiedPost`.
+### Что это?
 
-## Что появилось по сравнению с alpha
+**AutoPost Sync** — это сервис, который автоматически копирует посты между платформами:
 
-- PostgreSQL-ready хранилище через `SQLAlchemy Async`
-- env-конфигурация через `pydantic-settings`
-- таблицы `sync_rules`, `routes`, `processed_events`, `message_links`
-- Alembic-конфигурация и первая миграция
-- `docker-compose.yml` для локального PostgreSQL
-- API теперь работает поверх постоянного хранилища, а не in-memory
+- Напишешь пост в **Telegram** → он появится в **VK**
+- Отправишь сообщение в **VK** → оно попадёт в **MAX**
+- И всё в обе стороны одновременно
 
-## Что есть в этой версии
+### Как это работает?
 
-- FastAPI webhook endpoint: `POST /webhooks/{platform}`
-- единый доменный формат сообщений
-- матрица синхронизации через `SyncRule`
-- маршруты между конкретными каналами через `Route`
-- фильтры по типам контента: текст, изображения, видео, аудио, документы, репосты
-- защита от дублей
-- защита от циклов через trace/path
-- CRUD API для правил и маршрутов
-- реальный `TelegramAdapter` на Telethon + заглушки `vk`, `max`
+```
+Telegram канал
+    ↓
+Правило: "Копировать в VK"
+    ↓
+Маршрут: "Этот канал → ту группу VK"
+    ↓
+VK группа (пост готов)
+```
 
-## Чего пока нет
+### Основные возможности
 
-- реальные интеграции с VK/MAX API
-- очередь задач и retry
-- синхронизация edit/delete
-- полноценная загрузка медиа в целевые платформы
-- аутентификация вебхуков
-- UI
+✅ **Поддерживаемые платформы:**
+- Telegram (текст, фото, видео, документы)
+- VK (посты, фото, видео)
+- MAX (сообщения, медиа)
 
-## Быстрый запуск через PostgreSQL
+✅ **Основной функционал:**
+- Автоматическая синхронизация постов
+- Поддержка медиа (фото, видео, документы)
+- Защита от дублей и циклов
+- Задачи с автоматическими повторами
+- Шифрование токенов в базе
+
+✅ **Разработка:**
+- REST API
+- PostgreSQL хранилище
+- Фоновый воркер для отправки
+- Логирование и мониторинг
+
+### Быстрый старт (5 минут)
 
 ```bash
-cp .env.example .env
-docker compose up -d db
-python -m venv .venv
+# 1. Установи зависимости
+git clone https://github.com/yourusername/autopost_sync.git
+cd autopost_sync
+python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -e .
+
+# 2. Запусти базу
+docker compose up -d db
+
+# 3. Инициализируй БД
 alembic upgrade head
+
+# 4. Запусти сервер
 uvicorn app.main:app --reload
 ```
 
-## Быстрый запуск без Alembic
+Готово! Открой http://127.0.0.1:8000/docs
 
-Если `AUTO_CREATE_TABLES=true`, приложение само создаст таблицы при старте:
+### Настройка первого адаптера
 
 ```bash
-cp .env.example .env
-docker compose up -d db
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-uvicorn app.main:app --reload
+# Telegram
+curl -X POST http://localhost:8000/api/adapter-instances \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "adapter_key": "telegram",
+    "display_name": "Мой Telegram",
+    "config": {"api_id": 12345678, "receive_updates": true},
+    "secrets": {"api_hash": "your_hash", "bot_token": "your_token"}
+  }'
 ```
 
-## Примеры
+### Где взять учётные данные?
 
-### Создать правило TG -> VK
+**Telegram:**
+- Перейди на https://my.telegram.org/apps
+- Создай приложение
+- Скопируй API ID и API Hash
+
+**VK:**
+- Перейди на https://vk.com/dev
+- Создай приложение
+- Скопируй ID приложения
+
+**MAX:**
+- Перейди на https://max.im
+- Создай бота
+- Скопируй токен бота
+
+### Примеры использования
+
+**Создать синхронизацию Telegram → VK:**
 
 ```bash
-curl -X POST http://127.0.0.1:8000/rules \
+# 1. Создай правило
+curl -X POST http://localhost:8000/api/sync-rules \
   -H 'Content-Type: application/json' \
   -d '{
     "source_platform": "telegram",
@@ -92,160 +116,240 @@ curl -X POST http://127.0.0.1:8000/rules \
     "content_policy": {
       "allow_text": true,
       "allow_images": true,
-      "allow_video": true,
-      "allow_audio": false,
-      "allow_documents": false,
-      "allow_reposts": false,
-      "max_images": null,
-      "max_video_size_mb": null,
-      "max_audio_size_mb": null,
-      "drop_unsupported_media": true
+      "allow_video": true
     },
-    "repost_mode": "ignore",
     "copy_text_template": "{text}"
   }'
-```
 
-### Создать маршрут TG channel -> VK group
-
-```bash
-curl -X POST http://127.0.0.1:8000/routes \
+# 2. Создай маршрут (привяжи конкретный канал к конкретной группе)
+curl -X POST http://localhost:8000/api/routes \
   -H 'Content-Type: application/json' \
   -d '{
-    "id": "route-1",
-    "source_platform": "telegram",
-    "source_chat_id": "tg-channel-1",
-    "target_platform": "vk",
-    "target_chat_id": "vk-group-1",
+    "source_adapter_instance_id": "telegram-main",
+    "source_chat_id": "123456789",
+    "target_adapter_instance_id": "vk-main",
+    "target_chat_id": "237416141",
     "enabled": true
   }'
 ```
 
-### Послать тестовый webhook
+Готово! Теперь все посты из Telegram-канала будут автоматически публиковаться в VK-группе.
+
+### Структура проекта
+
+```
+autopost_sync/
+├── app/
+│   ├── adapters/           # Интеграции с платформами
+│   │   ├── telegram/       # Telegram (Telethon)
+│   │   ├── vk/             # VK (VK API)
+│   │   └── max/            # MAX (MAX Bot API)
+│   ├── api/                # REST API endpoints
+│   ├── db/                 # Модели базы данных
+│   ├── domain/             # Доменные модели
+│   ├── repositories/       # Работа с БД
+│   ├── services/           # Бизнес-логика
+│   └── workers/            # Фоновые задачи
+├── docs/                   # Подробная документация
+├── tests/                  # Тесты
+└── docker-compose.yml      # PostgreSQL для разработки
+```
+
+### Полная документация
+
+- 📖 [Установка и настройка](docs/INSTALLATION.md)
+- 🏗️ [Архитектура системы](docs/ARCHITECTURE.md)
+- 🔌 [Как работают адаптеры](docs/CONTRIBUTING.md#adding-a-new-adapter)
+- 📡 [REST API справочник](docs/API.md)
+- 🚀 [Быстрый старт](docs/QUICKSTART.md)
+- 💡 [FAQ и примеры](docs/README.md)
+
+Для расширенной настройки каждой платформы смотри:
+- [Telegram адаптер](app/adapters/telegram/README.md)
+- [VK адаптер](app/adapters/vk/README.md)
+- [MAX адаптер](app/adapters/max/README.md)
+
+### Требования
+
+- Python 3.11+
+- PostgreSQL 12+
+- Docker (опционально)
+
+### Лицензия
+
+MIT License
+
+---
+
+## 🇬🇧 English
+
+### What is this?
+
+**AutoPost Sync** is a service that automatically copies posts between platforms:
+
+- Write a post in **Telegram** → it appears in **VK**
+- Send a message in **VK** → it goes to **MAX**
+- Works in both directions simultaneously
+
+### How it works
+
+```
+Telegram channel
+    ↓
+Rule: "Copy to VK"
+    ↓
+Route: "This channel → that VK group"
+    ↓
+VK group (post ready)
+```
+
+### Key Features
+
+✅ **Supported platforms:**
+- Telegram (text, photos, videos, documents)
+- VK (posts, photos, videos)
+- MAX (messages, media)
+
+✅ **Core functionality:**
+- Automatic post synchronization
+- Media support (photos, videos, documents)
+- Duplicate and loop protection
+- Automatic retry with backoff
+- Encrypted token storage
+
+✅ **For developers:**
+- REST API
+- PostgreSQL storage
+- Background worker
+- Logging and monitoring
+
+### Quick Start (5 minutes)
 
 ```bash
-curl -X POST http://127.0.0.1:8000/webhooks/telegram \
+# 1. Install dependencies
+git clone https://github.com/yourusername/autopost_sync.git
+cd autopost_sync
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+
+# 2. Start database
+docker compose up -d db
+
+# 3. Initialize database
+alembic upgrade head
+
+# 4. Start server
+uvicorn app.main:app --reload
+```
+
+Done! Open http://127.0.0.1:8000/docs
+
+### Configure First Adapter
+
+```bash
+# Telegram
+curl -X POST http://localhost:8000/api/adapter-instances \
   -H 'Content-Type: application/json' \
   -d '{
-    "chat_id": "tg-channel-1",
-    "message_id": "100",
-    "text": "Привет из Telegram",
-    "media": [
-      {"type": "image", "url": "https://example.com/image.jpg"}
-    ],
-    "is_repost": false
+    "adapter_key": "telegram",
+    "display_name": "My Telegram",
+    "config": {"api_id": 12345678, "receive_updates": true},
+    "secrets": {"api_hash": "your_hash", "bot_token": "your_token"}
   }'
 ```
 
-### Проверить созданные связи сообщений
+### Where to get credentials?
+
+**Telegram:**
+- Go to https://my.telegram.org/apps
+- Create an app
+- Copy API ID and API Hash
+
+**VK:**
+- Go to https://vk.com/dev
+- Create an app
+- Copy App ID
+
+**MAX:**
+- Go to https://max.im
+- Create a bot
+- Copy bot token
+
+### Usage Examples
+
+**Sync Telegram → VK:**
 
 ```bash
-curl http://127.0.0.1:8000/debug/message-links
+# 1. Create sync rule
+curl -X POST http://localhost:8000/api/sync-rules \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "source_platform": "telegram",
+    "target_platform": "vk",
+    "enabled": true,
+    "content_policy": {
+      "allow_text": true,
+      "allow_images": true,
+      "allow_video": true
+    },
+    "copy_text_template": "{text}"
+  }'
+
+# 2. Create route (bind specific channel to group)
+curl -X POST http://localhost:8000/api/routes \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "source_adapter_instance_id": "telegram-main",
+    "source_chat_id": "123456789",
+    "target_adapter_instance_id": "vk-main",
+    "target_chat_id": "237416141",
+    "enabled": true
+  }'
 ```
 
-## Следующие шаги для gamma
+Done! All posts from Telegram channel will be automatically published to VK group.
 
-1. реальные publisher/client слои для Telegram, VK и MAX;
-2. retry-очередь и rate limiting;
-3. синхронизация edit/delete;
-4. хранение токенов/аккаунтов платформ;
-5. UI для матрицы и маршрутов.
+### Project Structure
 
-
-## Telegram через Telethon
-
-В этой версии Telegram переведён с заглушки на реальный адаптер Telethon.
-Поддерживается:
-
-- авторизация через `TELEGRAM_STRING_SESSION`
-- авторизация через `TELEGRAM_BOT_TOKEN`
-- отправка текста
-- отправка фото
-- отправка видео
-- приём новых сообщений через Telethon updates
-
-### Переменные окружения
-
-```env
-TELEGRAM_API_ID=123456
-TELEGRAM_API_HASH=your_api_hash
-TELEGRAM_STRING_SESSION=
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_SESSION_NAME=autopost_sync
-TELEGRAM_RECEIVE_UPDATES=true
-TELEGRAM_SEQUENTIAL_UPDATES=false
-TELEGRAM_ALLOWED_SOURCE_CHAT_IDS=[]
+```
+autopost_sync/
+├── app/
+│   ├── adapters/           # Platform integrations
+│   │   ├── telegram/       # Telegram (Telethon)
+│   │   ├── vk/             # VK (VK API)
+│   │   └── max/            # MAX (MAX Bot API)
+│   ├── api/                # REST API endpoints
+│   ├── db/                 # Database models
+│   ├── domain/             # Domain models
+│   ├── repositories/       # Database access
+│   ├── services/           # Business logic
+│   └── workers/            # Background jobs
+├── docs/                   # Detailed documentation
+├── tests/                  # Tests
+└── docker-compose.yml      # PostgreSQL for development
 ```
 
-Нужно задать `TELEGRAM_API_ID` и `TELEGRAM_API_HASH`, а затем либо `TELEGRAM_STRING_SESSION`, либо `TELEGRAM_BOT_TOKEN`.
+### Full Documentation
 
-### Замечания
+- 📖 [Installation & Setup](docs/INSTALLATION.md)
+- 🏗️ [System Architecture](docs/ARCHITECTURE.md)
+- 🔌 [How Adapters Work](docs/CONTRIBUTING.md#adding-a-new-adapter)
+- 📡 [REST API Reference](docs/API.md)
+- 🚀 [Quick Start](docs/QUICKSTART.md)
+- 💡 [FAQ & Examples](docs/README.md)
 
-- если Telegram не настроен, адаптер мягко отключается и приложение всё равно стартует;
-- входящие сообщения принимаются не через HTTP webhook, а через Telethon updates;
-- ручной `POST /webhooks/telegram` сохранён для тестов и отладки.
+For platform-specific setup:
+- [Telegram Adapter](app/adapters/telegram/README.md)
+- [VK Adapter](app/adapters/vk/README.md)
+- [MAX Adapter](app/adapters/max/README.md)
 
+### Requirements
 
-## VK callback configuration
+- Python 3.11+
+- PostgreSQL 12+
+- Docker (optional)
 
-Set `VK_TOKEN`, `VK_GROUP_ID`, and optionally `VK_CONFIRMATION_TOKEN` / `VK_SECRET`.
-VK webhook endpoint: `/webhooks/vk`.
-Supported incoming callback types in this build: `message_new`, `wall_post_new`, and `confirmation`.
-Publishing currently supports text and photo uploads to community wall; video/audio/document media fall back to links where possible.
+### License
 
-For VK OAuth in the Web UI, it is enough to register one trusted redirect URL: `/auth/vk/callback`.
-The app now uses this shared callback for VK ID code flow, media token implicit flow, and group-token implicit flow.
-
-If the current VK app configuration does not yield a usable `wall` / `photos` API token, the VK adapter can fall back to browser publishing through an already authorized Chrome session.
-This is an explicit opt-in fallback for local use, not the main open-source integration path.
-
-Install the optional extra first:
-
-```bash
-pip install .[vk-browser]
-```
-
-Then set `VK Browser CDP URL` in the VK adapter advanced settings, for example `http://127.0.0.1:9222`, and run Chrome with remote debugging enabled:
-
-```bash
-open -na "Google Chrome" --args --remote-debugging-port=9222
-```
-
-Then sign in to VK in that Chrome window once. After that the adapter can publish a community wall post with photo through the web UI fallback.
-
-
-## MAX adapter
-
-The project now includes a real MAX adapter based on the official MAX Bot API. It can receive `message_created` webhook updates, validate the `X-Max-Bot-Api-Secret` header, send text messages, and upload image/video/audio/file attachments through `/uploads` followed by `/messages`. MAX recommends webhook delivery for production, requires HTTPS on port 443, and supports up to 30 requests per second. If sending immediately after upload fails with `attachment.not.ready`, the adapter includes a short delay and can fall back to text with media links.
-
-
-## Delivery queue and retry
-
-This version includes a database-backed `delivery_jobs` queue and a background worker. Sync ingestion enqueues outgoing deliveries instead of sending media inline. The worker retries transient media failures such as MAX `attachment.not.ready`, rate limits, timeouts, and temporary upload processing with exponential backoff.
-
-
-## Production queue
-
-- PostgreSQL row locking via `FOR UPDATE SKIP LOCKED` when the dialect is PostgreSQL
-- lease-based job acquisition with `lock_token` and `lock_expires_at`
-- dead-letter state: `dead_letter`
-- platform-specific retry classifiers for Telegram, VK, and MAX
-
-
-## Queue heartbeat
-
-For long media uploads, the worker now periodically extends the PostgreSQL lease while the job is still running. Configure it with `DELIVERY_JOB_HEARTBEAT_INTERVAL_SECONDS`.
-
-
-## Single source of truth
-
-Telegram, VK and MAX platform settings are stored only in the database and edited through the Web GUI.
-Environment variables are reserved for infrastructure settings such as `DATABASE_URL`, `SECRETS_ENCRYPTION_KEY` and worker tuning.
-
-
-## MAX transport
-
-Для MAX базовым транспортным слоем используется официальный/проверенный пакет `maxapi` (`max-messenger/max-botapi-python`) с fallback на прямой HTTP Bot API, если нужный метод в SDK недоступен.
-
-
-- `SQL_DEBUG` — включает подробный SQL-лог SQLAlchemy. По умолчанию лучше держать `false`, иначе консоль будет забита запросами.
+MIT License
