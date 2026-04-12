@@ -1,3 +1,5 @@
+from contextlib import suppress
+
 from fastapi import APIRouter, Depends, HTTPException
 import re
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -71,3 +73,38 @@ async def delete_adapter_instance(instance_id: str, session: AsyncSession = Depe
     if not ok:
         raise HTTPException(status_code=404, detail='Adapter instance not found')
     return {'ok': True}
+
+
+@router.post('/api/adapter-instances/{instance_id}/test')
+async def test_adapter_instance(instance_id: str, session: AsyncSession = Depends(get_session), container=Depends(get_container)):
+    repo = AdapterInstancesRepo(session, SecretBox(container.secrets_encryption_key))
+    instance = await repo.get(instance_id, include_secrets=True)
+    if instance is None:
+        raise HTTPException(status_code=404, detail='Adapter instance not found')
+
+    try:
+        adapter = container.definition_registry.create_adapter(
+            instance["adapter_key"],
+            instance_id=instance["id"],
+            config=instance.get("config") or {},
+            secrets=instance.get("secrets") or {},
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    async def _noop_on_post(_post) -> None:
+        return None
+
+    try:
+        await adapter.startup(on_post=_noop_on_post)
+        return {
+            "ok": True,
+            "instance_id": instance_id,
+            "adapter_key": instance["adapter_key"],
+            "enabled": bool(getattr(adapter, "enabled", True)),
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    finally:
+        with suppress(Exception):
+            await adapter.shutdown()
